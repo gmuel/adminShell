@@ -164,3 +164,6 @@ umountLuksDev(){
     dr0=/media/$2/$uuid
     [[ -d $dr0 && -n "$(mount | grep $dr0 )" ]] && umountTemp $dr0 && encrypt $1
 }
+alias btr=btrfs
+alias btrs="btr subvolume"
+
