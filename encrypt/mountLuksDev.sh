@@ -64,29 +64,18 @@ printHelp(){
     [[ "$1" == "-v" || "$1" ==  "--version" ]] && printVersion $2 && return 0
     return 1  
 }
+devFile=/home/gab2/bin/devMap.txt
+declare -a uuids=( $(cut -d' ' -f1 $devFile ) )
+echo ${uuids[@]}
 printKeyFile(){
     printHelp "$1" "printKeyFile" && return 0
-    declare -a uuids=( 75525cc0-54d3-4cbd-aca7-1620e802ebd3 75c6f82d-186f-44b6-8c1b-2dff7538c232 e46e8fc0-edac-4cf2-b477-42114cda29fb e3567221-2b55-46b0-8af1-915b4b1e2ae7 2570b821-53d2-4aba-a5c6-e9d0ccb43229 4c4656d9-9093-4bbc-9962-baf3c8cb8fe4 )
     for i in ${uuids[@]}; do
-        blkid | grep $i | grep -q $(echo $1 | sed "s/[0-9]\$//g" ) && mapUUID $i
+        blkid | grep $i | grep -q $(echo $1 | sed "s/[0-9]\$//g" ) && mapUUID $i && break
     done
 }
 mapUUID(){
     printHelp "$1" "mapUUID" && return 0
-    case $1 in
-    75525cc0-54d3-4cbd-aca7-1620e802ebd3) echo .sea_key
-        ;;
-    75c6f82d-186f-44b6-8c1b-2dff7538c232) echo .san1_key
-        ;;
-    e46e8fc0-edac-4cf2-b477-42114cda29fb) echo .sam1_key
-        ;;
-    e3567221-2b55-46b0-8af1-915b4b1e2ae7) echo .san2_key
-        ;;
-    2570b821-53d2-4aba-a5c6-e9d0ccb43229) echo .san3_key
-        ;;
-    4c4656d9-9093-4bbc-9962-baf3c8cb8fe4) echo .wd_key
-	;;
-    esac
+    grep $1 $devFile | cut -d' ' -f2
 }
 listExternalLUKS(){
     printHelp "$1" "listExternalLUKS" && return 0
@@ -100,19 +89,27 @@ decrypt(){
     [ -z "$ky_fl" ] && return -1
     cryptsetup luksOpen $2 ${1}_crypt --key-file /root/.keys/$ky_fl    
 }
+declare -a mounted_dirs=( ${mounted_dirs[@]} )
 mountTemp(){
     printHelp "$1" "mountTemp" && return 0
     uuid=$(getUUID $3 )
-    dr2=/media/$1/$uuid
-    if mkdir -p $dr2 ; then
-        chown $1 $dr2
-	optFl=
-	if [ -z "$5" ]; then
-	   optFl=ro
-	else
-	    optFl=rw
-	fi
-        [ ! -z "$4" ] && mount -t btrfs -o $optFl,subvol=$4 $2 $dr2 || mount -t btrfs -o ro $2 $dr2
+    sz=${#mounted_dirs[@]}
+    mounted_dirs[$sz]="/media/$1/$uuid"
+    if mkdir -p ${mounted_dirs[$sz]} ; then
+        chown $1 ${mounted_dirs[$sz]}
+	    optFl=
+	    if [ -z "$5" ]; then
+	       optFl=ro
+	    else
+	        optFl=rw
+	    fi
+        if [ ! -z "$4" ]; then
+            echo mount -t btrfs -o $optFl,subvol=$4 $2 ${mounted_dirs[$sz]}            
+            mount -t btrfs -o $optFl,subvol=$4 $2 ${mounted_dirs[$sz]}
+        else
+            echo mount -t btrfs -o ro $2 ${mounted_dirs[$sz]}
+            mount -t btrfs -o ro $2 ${mounted_dirs[$sz]}
+        fi
     fi
 }
 getBlkChars(){
@@ -126,25 +123,33 @@ mountLuksDev(){
     echo $cmd   
     if $cmd ; then
         cde=0
-	cmd="getBlkChars UUID $dr1 -q ."
-	echo $cmd
-        if ! $cmd ; then
-           cmd="decrypt $1 $dr0"
-	   $cmd 
-           cde=$?
-        fi
-	openOpt=
-	if [ -z "$4" ]; then
- 	    openOpt=rw
-	else
-	    openOpt=$4 
-	fi
-        if [[ $cde == 0 ]]; then
-	    cmd="mountTemp $2 $dr1 $dr0 $3 $openOpt"
+	    cmd="getBlkChars UUID $dr1 -q ."
 	    echo $cmd
-	    $cmd	
-	fi
+        if ! $cmd ; then
+            cmd="decrypt $1 $dr0"
+	        $cmd 
+            cde=$?
+        fi
+	    openOpt=
+	    if [ -z "$4" ]; then
+ 	        openOpt=rw
+	    else
+	        openOpt=$4 
+	    fi
+        if [[ $cde == 0 ]]; then
+	        cmd="mountTemp $2 $dr1 $dr0 $3 $openOpt"
+	        echo $cmd
+	        $cmd	
+	    fi
     fi
+}
+printFirstSubvol(){
+    k=$2
+    [ -z "$k" ] && k=3 || k=$(($k+3))
+    for i in ${uuids[@]}; do
+        pattn="$(blkid | grep $i | grep $(echo $1 | sed "s/[0-9]\$//g" ) | sed "s/.\+UUID=\"\([0-9a-f]\+\(\-[0-9a-f]\+\)\+\)\".\+/\1/g" )"
+        [ ! -z "$pattn" ] && grep "$pattn" $devFile | cut -d' ' -f $k && break
+    done
 }
 getUUID(){
     printHelp "$1" "getUUID" && return 0
@@ -156,7 +161,8 @@ encrypt(){
 }
 umountTemp(){
     printHelp "$1" "umountTemp" && return 0
-    umount $1 && rmdir $1
+    umount $1 && rmdir $1 && \
+        mounted_dirs=( $(for i in ${mounted_dirs[@]}; do [[ "$i" != "$1" ]] && echo $i; done ) )
 }
 umountLuksDev(){
     printHelp "$1" "umountLuksDev" && return 0
@@ -166,4 +172,13 @@ umountLuksDev(){
 }
 alias btr=btrfs
 alias btrs="btr subvolume"
-
+printDvc(){
+    ls /dev/sd*$1 | sed "s/\/dev\/\(sd.$1\)/\1/g"
+}
+createSnap(){
+    btrs snapshot -r $1 "@$(date +%Y%m%d)"
+}
+sendSnap(){ 
+    [ ! -z "$3" ] && btr send -p $1 $2 | btr receive $3 || btr send $1 | btr receive $2
+}
+alias listSnaps="btrs list"
