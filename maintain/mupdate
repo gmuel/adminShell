@@ -1,0 +1,2 @@
+#!/bin/bash
+mintupdate-cli -r list | grep . && mintupdate-cli -r upgrade -y
