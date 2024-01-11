@@ -182,3 +182,16 @@ sendSnap(){
     [ ! -z "$3" ] && btr send -p $1 $2 | btr receive $3 || btr send $1 | btr receive $2
 }
 alias listSnaps="btrs list"
+getSubvol(){
+	case "$1" in
+	4c4) echo "@backup/@home2";;
+	25) echo "@home2";;
+	*)  echo "@old";;
+	esac
+}
+mountLuks(){
+	dvc=$(printDvc $1 )
+	vol="$3"
+	[ -z "$vol" ] && vol=$(blkid -s UUID -o value /dev/$dvc | sed "s/^\([a-zA-Z09]\{2\}\).\+/\1/g" ) && vol=$(getSubvol $vol )
+	mountLuksDev $dvc $2 $vol
+}
