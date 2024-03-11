@@ -2,7 +2,7 @@
 source /home/gab2/bin/mountLuksDev.sh # >> /dev/null
 cd /home
 dt_str=$(date +%Y%m%d)
-parent_vol=$(btrs list ./ | grep -v "@$dt_str" | grep "@20\(2[4-9]\|[3-9][0-9]\)" tail -1 | cut -d' ' -f9 )
+parent_vol=$(btrs list ./ | grep -v "@$dt_str" | grep "@20\(2[4-9]\|[3-9][0-9]\)" | tail -1 | cut -d' ' -f9 )
 echo Found parent volume /home/"$parent_vol"
 child_vol=$(btrs list ./ | grep "$dt_str" | tail -1 | cut -d' ' -f9 | sed "s/\(.\+\)/\/\1/g" | grep ".\+" || btrs snapshot -r /home "@$dt_str" | \
     sed "s/.\+\.\(\/\@20\(2[4-9]\|[3-9][0-9]\)\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)\).\+/\1/g" )
