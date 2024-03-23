@@ -200,3 +200,8 @@ mountLuks(){
 	[ -z "$vol" ] && vol=$(blkid -s UUID -o value /dev/$dvc | sed "s/^\([a-zA-Z09]\{2\}\).\+/\1/g" ) && vol=$(getSubvol $vol )
 	mountLuksDev $dvc $2 $vol
 }
+closeAll(){
+    for i in $(ls /dev/mapper/ | grep "sd[a-z][0-9]_crypt"); do
+        cryptsetup luksClose $i
+    done
+}
