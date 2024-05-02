@@ -161,8 +161,9 @@ encrypt(){
 }
 umountTemp(){
     printHelp "$1" "umountTemp" && return 0
-    umount $1 && rmdir $1 && mounted_dirs=( $(for i in ${mounted_dirs[@]}; do [[ "$i" != "$1" ]] && echo $i || continue; done ) ) && return 0
-    return 1
+    umount $1 && rmdir $1 && \
+        mounted_dirs=( $(for i in ${mounted_dirs[@]}; do if [[ "$i" != "$1" ]]; then echo $i; fi; done ) )
+    return 0
 }
 umountLuksDev(){
     printHelp "$1" "umountLuksDev" && return 0
