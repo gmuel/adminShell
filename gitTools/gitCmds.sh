@@ -48,4 +48,6 @@ runBatch(){
   flg=$2
   
 }
-
+parent(){
+    git branch --list | grep "\(main\|luks/mount\)" | sed "s/\* //g"
+}
