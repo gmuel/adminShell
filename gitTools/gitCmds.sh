@@ -51,3 +51,11 @@ runBatch(){
 parent(){
     git branch --list | grep "\(main\|luks/mount\)" | sed "s/\* //g"
 }
+printDiff(){
+    [ -z "$1" ] && cmd=modified || cmd="modified | grep \"\$1\""
+#    echo $cmd
+#    eval $cmd
+    for i in $(eval $cmd ); do
+        git diff $i
+    done
+}
