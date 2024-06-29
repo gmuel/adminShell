@@ -206,3 +206,6 @@ closeAll(){
         cryptsetup luksClose $i
     done
 }
+printLuksDev(){
+    getBlkChars TYPE $1 -i -q luks && uuid=$(getBlkChars UUID $1 ) && echo luks-$uuid $uuid $(mapUUID $uuid ) luks
+}
