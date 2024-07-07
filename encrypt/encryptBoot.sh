@@ -41,19 +41,30 @@ updateInitNGrub(){
   grub-install
 }
 includeKey(){
-  sed -i "s/\(UUID=$uuid\) none luks\(,discard\)\?/\1 $kyfl \2/g" /etc/crypttab
+  sed -i.1 "s/\(UUID=$1\) none \(luks\(,discard\)\?\)/\1 ${kyfl//'/'/'\/'} \2/g" /etc/crypttab
 }
 createLuks1Boot(){
+  echo   mount -o remount,ro /boot
   mount -o remount,ro /boot
+  echo install -m0600 /dev/null /tmp/boot.tar
   install -m0600 /dev/null /tmp/boot.tar
+  echo tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar .
   tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar .
+  echo umountBoot
   umountBoot
-  dd if=/dev/urandom of=/dev/sda1 bs=1M status=none
+  echo dd if=/dev/urandom of=\$btDvc bs=1M status=none
+  dd if=/dev/urandom of=$btDvc bs=1M status=none
+  echo cryptsetup luksFormat --type luks1 $btDvc
   cryptsetup luksFormat --type luks1 $btDvc
+  echo cryptsetup luksAddKey $btDvc $kyfl
   cryptsetup luksAddKey $btDvc $kyfl
+  echo "uuid=\"\$(blkid -o value -s UUID \$btDvc) \""
   uuid="$(blkid -o value -s UUID $btDvc)"
+  echo "echo \"boot_crypt UUID=$uuid $kyfl luks,discard,key-slot=1 \"| tee -a /etc/crypttab"
   echo "boot_crypt UUID=$uuid $kyfl luks,discard,key-slot=1" | tee -a /etc/crypttab
+  echo cryptdisks_start boot_crypt
   cryptdisks_start boot_crypt
+  echo mkfsAndCopy $uuid $fs
   mkfsAndCopy $uuid $fs
 }
 
