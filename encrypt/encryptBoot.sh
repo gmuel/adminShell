@@ -11,14 +11,14 @@ helptxt(){
       FS_TYPE     - file system type of the boot partition, NOTE should match the entry in /etc/fstab
       
 EOF
-  return $1
+  [ -z "$1" ] && return 0 || return $1
 }
 [[ "$1" == "-h" || "$1" == "--help" ]] && helptxt 0
 btDvc=$1
 kyfl=$2
 [ -z "$3" ] && fs=$3 || fs=ext4
 umountBoot(){
-  if mount | grep boot_crypt; then
+  if mount | grep "boot\(_crypt\)\?" ; then
     mount | grep efi && umount /boot/efi
     umount /boot
   fi
