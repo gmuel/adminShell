@@ -66,7 +66,7 @@ printHelp(){
 }
 printKeyFile(){
     printHelp "$1" "printKeyFile" && return 0
-    declare -a uuids=( 75525cc0-54d3-4cbd-aca7-1620e802ebd3 75c6f82d-186f-44b6-8c1b-2dff7538c232 e46e8fc0-edac-4cf2-b477-42114cda29fb e3567221-2b55-46b0-8af1-915b4b1e2ae7 2570b821-53d2-4aba-a5c6-e9d0ccb43229 4c4656d9-9093-4bbc-9962-baf3c8cb8fe4 )
+    declare -a uuids=( 75525cc0-54d3-4cbd-aca7-1620e802ebd3 75c6f82d-186f-44b6-8c1b-2dff7538c232 e46e8fc0-edac-4cf2-b477-42114cda29fb e3567221-2b55-46b0-8af1-915b4b1e2ae7 2570b821-53d2-4aba-a5c6-e9d0ccb43229 4c4656d9-9093-4bbc-9962-baf3c8cb8fe4 e6ed36e4-0deb-4957-bf94-c3b70c5017af )
     for i in ${uuids[@]}; do
         blkid | grep $i | grep -q $(echo $1 | sed "s/[0-9]\$//g" ) && mapUUID $i
     done
@@ -85,6 +85,8 @@ mapUUID(){
     2570b821-53d2-4aba-a5c6-e9d0ccb43229) echo .san3_key
         ;;
     4c4656d9-9093-4bbc-9962-baf3c8cb8fe4) echo .wd_key
+    	;;
+    e6ed36e4-0deb-4957-bf94-c3b70c5017af) echo .sam4t_key
 	;;
     esac
 }
