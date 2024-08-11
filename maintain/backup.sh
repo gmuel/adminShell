@@ -20,7 +20,7 @@ fi
 echo "backup subvol suffix found: $backvol"
 UUID=
 sbvl=
-dvc=$(blkid | grep LUKS | grep "sd[a-z][12]" | sed "s/\(\/dev\/sd[a-z][12]\).\+/\1/g" )
+dvc=$(blkid | grep LUKS | grep "\(4c4656d9-9093-4bbc-9962-baf3c8cb8fe4\|e6ed36e4-0deb-4957-bf94-c3b70c5017af\)" | sed "s/\(\/dev\/sd[a-z][23]\).\+/\1/g" )
 echo $dvc used as backup
 UUID=$(blkid -s UUID -o value $dvc )
 echo having UUID $UUID
