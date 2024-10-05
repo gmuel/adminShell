@@ -27,6 +27,8 @@ helptxt(){
         "umountLuksDev") echo " umountLuksDev [OPTION]  SRC_DVC USER  - unmount SRC_DVC"
                     echo "            and re-encrypt SRC_DVC"
                     ;;
+        "createKey") echo " createKey [OPTION] PATH_2_DEVICE, create new key, copy"
+                    echo "      to default key folders and create a backup with default access flags"
     esac
     echo "      ARGS:"
     case "$1" in
@@ -47,7 +49,7 @@ helptxt(){
         "getUUID")
             echo "          DVC     /full/path/to/device"
             ;;
-        
+        "createKey      PATH_2_DEVICE - /dev/sda2, /dev/nvme0n2p1, ..."
     esac
     case "$1" in
         "mountTemp"|"mountLuksDev") 
@@ -202,10 +204,41 @@ mountLuks(){
 	mountLuksDev $dvc $2 $vol
 }
 closeAll(){
-    for i in $(ls /dev/mapper/ | grep "sd[a-z][0-9]_crypt"); do
+    pat=
+    if [ -b /dev/nvme0n1 ]; then
+        pat="\(sd[a-z]"
+    else
+        pat="\(sd[b-z]"
+    fi
+    pat="${pat}_crypt[1-9]\|luks-[a-f0-9]\+\(\-[a-f0-9]\)\+"
+    for i in $(ls /dev/mapper/ | grep "$pat"); do
         cryptsetup luksClose $i
     done
 }
 printLuksDev(){
     getBlkChars TYPE $1 -i -q luks && uuid=$(getBlkChars UUID $1 ) && echo luks-$uuid $uuid $(mapUUID $uuid ) luks
 }
+ky_user=
+setKeyUser(){
+    ky_user="$1"
+}
+
+createKey(){
+    printHelp "$1" "addNewKey" && return 0
+    dvc=$1
+    if [ -n "$dvc" ] && [ -b $dvc ] && getBlkChars TYPE $dvc -i -q luks; then
+        uuid=$(getBlkChars UUID $dvc . )
+        ky_fl=/root/.keys/.${uuid}.key
+        if dd if=/dev/urandom of=$ky_fl bs=512 count=8; then
+            chmod 0600 $ky_fl
+            cp -u $ky_fl /home/$ky_user/.root/keys
+            chmod 0600 /home/$ky_user/.root/keys/$(basename $ky_fl )
+        fi
+        
+    fi
+    
+}
+if [[ "$USER" != "root" ]]; then setKeyUser $USER
+elif pwd | grep home; then
+    setKeyUser $(pwd | sed "s/\/home\/\([a-zA-Z0-9_]\+\)\/.\+/\1/g" )
+fi
