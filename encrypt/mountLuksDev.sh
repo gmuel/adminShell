@@ -49,7 +49,9 @@ helptxt(){
         "getUUID")
             echo "          DVC     /full/path/to/device"
             ;;
-        "createKey      PATH_2_DEVICE - /dev/sda2, /dev/nvme0n2p1, ..."
+        "createKey")
+            echo "  PATH_2_DEVICE - /dev/sda2, /dev/nvme0n2p1, ..."
+            ;;
     esac
     case "$1" in
         "mountTemp"|"mountLuksDev") 
@@ -237,6 +239,14 @@ createKey(){
         
     fi
     
+}
+backupHeader(){
+    printHelp "$1" "backupHeader" && return 0
+    dvc=$1
+    if [ -n "$dvc" ] && [ -b $dvc ] && getBlkChars TYPE $dvc -i -q luks; then
+        uuid=$(getBlkChars UUID $dvc . )
+        cryptsetup luksHeaderBackup $dvc --header-backup-file /home/$ky_user/.root/crypt_headers/.${uuid}.bin
+    fi
 }
 if [[ "$USER" != "root" ]]; then setKeyUser $USER
 elif pwd | grep home; then
