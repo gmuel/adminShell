@@ -29,6 +29,10 @@ helptxt(){
                     ;;
         "createKey") echo " createKey [OPTION] PATH_2_DEVICE, create new key, copy"
                     echo "      to default key folders and create a backup with default access flags"
+                    ;;
+        "backupHeader") echo " backupHeader [OPTION] PATH_2_LUKS_DEVICE, backup header"
+                    echo "      for given LUKS device"
+                    ;;
     esac
     echo "      ARGS:"
     case "$1" in
@@ -51,6 +55,9 @@ helptxt(){
             ;;
         "createKey")
             echo "  PATH_2_DEVICE - /dev/sda2, /dev/nvme0n2p1, ..."
+            ;;
+        "backupHeader")
+            echo "  PATH_2_LUKS_DEVICE - /dev/sda2, /dev/nvme0n2p1, ..."
             ;;
     esac
     case "$1" in
