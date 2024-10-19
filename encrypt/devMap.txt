@@ -5,4 +5,4 @@ e3567221-2b55-46b0-8af1-915b4b1e2ae7 .san2_key @old
 2570b821-53d2-4aba-a5c6-e9d0ccb43229 .san3_key @home2
 4c4656d9-9093-4bbc-9962-baf3c8cb8fe4 .wd_key @backup/@home2 @vol1 @vol2
 c2323138-8390-4adc-8f6e-2f12eab4919a .san1_key @old
-e6ed36e4-0deb-4957-bf94-c3b70c5017af .sam4t_key @home
+62bc1b28-ab06-4e28-8167-2fe0e3c9499d .sam4t_key @home
