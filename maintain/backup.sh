@@ -32,11 +32,14 @@ if [[ "$?" != "0" || -z "$parent_vol" ]]; then
     exit -1
 fi
 echo Found parent volume "$vol_str$parent_vol"
-child_vol=$(btrs list ./ | grep "@$dt_str" | tail -1 | cut -d' ' -f9 | sed "s/\/\?\(.\+\)/\/\1/g" | grep ".\+" || btrs snapshot -r $vol_str "@$dt_str" \
-    | sed "s/.\+\.\(\@20\(2[4-9]\|[3-9][0-9]\)\(0[1-9]\|1[0-2]\)\(0[1-9]\|[12][0-9]\|3[01]\)\).\+/\1/g" )
-child_vol=$(echo $child_vol | sed "s/\/\(.\+\)/\1/g" )
-# child_vol=$(echo "/@$(date +%Y%m%d )" | sed "s/.\+\.\(\/\@2024\(0[1-9]\|1[0-2]\)\)\(0[1-9]\|[12][0-9]\|3[01]\).\+/\1/g" )
-echo "and new child volume $vol_str$child_vol created"
+child_vol=$(btrs list ./ | grep "@$dt_str" | tail -1 | cut -d' ' -f9 | sed "s/\/\?\(.\+\)/\/\1/g" | grep ".\+")
+if [ -z "$child_vol" ]; then
+     child_vol=$(btrs snapshot -r $vol_str "@$dt_str" && echo "@$dt_str" )
+    echo "and new child volume $vol_str$child_vol created"
+else
+    child_vol=$(echo $child_vol | sed "s/\/\(.\+\)/\1/g" )
+    echo "and child volume found: $vol_str$child_vol"
+fi
 backvol=
 if inxi -M | grep XPS; then
     backvol=2
