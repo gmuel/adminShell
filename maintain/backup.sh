@@ -34,7 +34,7 @@ fi
 echo Found parent volume "$vol_str$parent_vol"
 child_vol=$(btrs list ./ | grep "@$dt_str" | tail -1 | cut -d' ' -f9 | sed "s/\/\?\(.\+\)/\/\1/g" | grep ".\+")
 if [ -z "$child_vol" ]; then
-     child_vol=$(btrs snapshot -r $vol_str "@$dt_str" && echo "@$dt_str" )
+     child_vol=$(btrs snapshot -r $vol_str "@$dt_str" | grep -q "Create" && echo "@$dt_str" )
     echo "and new child volume $vol_str$child_vol created"
 else
     child_vol=$(echo $child_vol | sed "s/\/\(.\+\)/\1/g" )
