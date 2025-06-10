@@ -172,8 +172,17 @@ encrypt(){
 }
 umountTemp(){
     printHelp "$1" "umountTemp" && return 0
-    umount $1 && rmdir $1 && \
-        mounted_dirs=( $(for i in ${mounted_dirs[@]}; do if [[ "$i" != "$1" ]]; then echo $i; fi; done ) )
+    if umount $1; then
+        if rmdir $1; then
+            mounted_dirs=( $(for i in ${mounted_dirs[@]}; do if [[ "$i" != "$1" ]]; then echo $i; fi; done ) )
+        else
+            echo dir could not be removed - try manually
+            return 2
+        fi
+    else
+        echo umount failed - dvc still busy?
+        return 1
+    fi
     return 0
 }
 umountLuksDev(){
