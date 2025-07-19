@@ -31,12 +31,12 @@ mkfsAndCopy(){
   uuid=$1
   fs=$2
   [ -z "$fs" ] && fs=ext4
-  mkfs.$fs -m0 -U $uuid /dev/mapper/boot_crypt
+  mkfs.$fs -m0 /dev/mapper/boot_crypt
   mountBoot
   tar -C /boot --acls --xattrs -xf /tmp/boot.tar
 }
 updateInitNGrub(){
-  update-initramfs -u
+  update-initramfs -u -k all
   update-grub
   grub-install
 }
@@ -50,7 +50,7 @@ createLuks1Boot(){
     runCmd install -m0600 /dev/null /tmp/boot.tar && \
     runCmd tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar . && \
     runCmd umountBoot && \
-    runCmd dd if=/dev/urandom of=\$btDvc bs=1M status=none && \
+    runCmd dd if=/dev/urandom of=\$btDvc bs=1M status=none # && \
     runCmd cryptsetup luksFormat --type luks1 $btDvc && \
     runCmd cryptsetup luksAddKey $btDvc $kyfl && \
     runCmd uuid=$(blkid -o value -s UUID $btDvc) && \
