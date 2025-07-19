@@ -25,7 +25,8 @@ umountBoot(){
 }
 mountBoot(){
   mount -v /boot
-  [ -d /boot/efi ] && mount -v /boot/efi
+  [ ! -d /boot/efi ] && mkdir /boot/efi
+  mount -v /boot/efi
 }
 mkfsAndCopy(){
   uuid=$1
