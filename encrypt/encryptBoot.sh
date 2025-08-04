@@ -55,7 +55,7 @@ createLuks1Boot(){
     runCmd cryptsetup luksFormat --type luks1 $btDvc && \
     runCmd cryptsetup luksAddKey $btDvc $kyfl && \
     runCmd uuid=$(blkid -o value -s UUID $btDvc) && \
-    runCmd echo "boot_crypt UUID=$uuid $kyfl luks,discard,key-slot=1" | tee -a /etc/crypttab && \
+    runCmd "echo boot_crypt UUID=$uuid $kyfl luks,discard,key-slot=1 | tee -a /etc/crypttab" && \
     runCmd cryptdisks_start boot_crypt && \
     runCmd mkfsAndCopy $uuid $fs
 #  echo install -m0600 /dev/null /tmp/boot.tar
