@@ -48,6 +48,7 @@ createLuks1Boot(){
   #echo   mount -o remount,ro /boot
   # mount -o remount,ro /boot
   runCmd mount -o remount,ro /boot && \
+    runCmd umount /boot/efi
     runCmd install -m0600 /dev/null /tmp/boot.tar && \
     runCmd tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar . && \
     runCmd umountBoot && \
