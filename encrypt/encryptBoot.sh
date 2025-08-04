@@ -1,13 +1,13 @@
 #!/bin/bash
 helptxt(){
   cat << EOF
-    $0 BOOT_DEVICE KEY_FILE [FS_TYPE]
+    $0 BOOT_DEVICE [FS_TYPE]
       Copies BOOT_DVC to local folder, encrypts BOOT_DIVCE as luks1
-      with a KEY_FILE and copies the original content back to said device
+      with copies the original content back to said device
       on file system FS_TYPE (default: ext4)
+      NOTE - the key file used will be automatically created 
       
       BOOT_DEVICE - block device containing the boot partition (e.g. /dev/sda1, /dev/nvme1np1 )
-      KEY_FILE    - common key file for boot and root partition
       FS_TYPE     - file system type of the boot partition, NOTE should match the entry in /etc/fstab
       
 EOF
@@ -15,8 +15,8 @@ EOF
 }
 [[ "$1" == "-h" || "$1" == "--help" ]] && helptxt 0
 btDvc=$1
-kyfl=$2
-[ -z "$3" ] && fs=$3 || fs=ext4
+# kyfl=$2
+[ -z "$2" ] && fs=$2 || fs=ext4
 umountBoot(){
   if mount | grep "boot\(_crypt\)\?" ; then
     mount | grep efi && umount /boot/efi
@@ -33,10 +33,11 @@ mkfsAndCopy(){
   fs=$2
   [ -z "$fs" ] && fs=ext4
   mkfs.$fs -m0 /dev/mapper/boot_crypt
-  mountBoot
+  mount -v /boot
   tar -C /boot --acls --xattrs -xf /tmp/boot.tar
 }
 updateInitNGrub(){
+  mount -a
   update-initramfs -u -k all
   update-grub
   grub-install
@@ -48,17 +49,20 @@ createLuks1Boot(){
   #echo   mount -o remount,ro /boot
   # mount -o remount,ro /boot
   runCmd mount -o remount,ro /boot && \
-    runCmd umount /boot/efi
+    runCmd "mount | grep efi && umount /boot/efi" && \
     runCmd install -m0600 /dev/null /tmp/boot.tar && \
     runCmd tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar . && \
     runCmd umountBoot && \
     runCmd dd if=/dev/urandom of=\$btDvc bs=1M status=none # && \
     runCmd cryptsetup luksFormat --type luks1 $btDvc && \
-    runCmd cryptsetup luksAddKey $btDvc $kyfl && \
     runCmd uuid=$(blkid -o value -s UUID $btDvc) && \
+    kyfl=/root/.keys/.${uuid}.key && \
+    runCmd dd if=/dev/urandom of=$kyfl bs=512 count=8 && \
+    runCmd cryptsetup luksAddKey $btDvc $kyfl && \
     runCmd "echo boot_crypt UUID=$uuid $kyfl luks,discard,key-slot=1 | tee -a /etc/crypttab" && \
     runCmd cryptdisks_start boot_crypt && \
-    runCmd mkfsAndCopy $uuid $fs
+    runCmd mkfsAndCopy $uuid $fs && \
+    runCmd updateInitNGrub
 #  echo install -m0600 /dev/null /tmp/boot.tar
 #  install -m0600 /dev/null /tmp/boot.tar
 #  echo tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar .
