@@ -3,6 +3,7 @@ backupKeys(){
     dr=.root/keys/
     for i in $(la /root/.keys/ ); do
         if [[ ! -f ${dr}$i && ! -f ${dr}${i//'.key'/'_key'} ]]; then
+            [[ "$1" == "-q" ]] || echo backing up key $i
             cp /root/.keys/$i $dr
         fi
     done
@@ -16,7 +17,7 @@ backupAllHeaders(){
         dr=.root/crypt_headers/home/
         bckfl=${dr}.${uuid}.bin
         if [ ! -f $bckfl ]; then
-            echo cryptsetup luksHeaderBackup $i --header-backup-file $bckfl
+            [[ "$1" == "-q" ]] || echo cryptsetup luksHeaderBackup $i --header-backup-file $bckfl
             cryptsetup luksHeaderBackup $i --header-backup-file $bckfl
         fi
     done
