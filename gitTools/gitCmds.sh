@@ -17,7 +17,7 @@ updateBranch(){
     echo "Missing source branch"
     return 1
   fi
-  git checkout $base_brnch || exit $?
+  git checkout $base_brnch || return $?
   git pull origin $base_brnch
   git checkout $brnch
   
@@ -31,7 +31,7 @@ amend  (){ git commit --amend -m "[$(branch )] $@"; }
 
 switchBranch(){
   brnch=$1
-  [ -z "$brnch" ] && exit 1
+  [ -z "$brnch" ] && return 1
   if [ -z "$(findBranch $brnch )" ]; then
     git checkout -b $brnch
     return 0
