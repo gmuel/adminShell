@@ -103,7 +103,7 @@ runCmd(){
     eval $@
 }
 removeKey(){
-    grep boot_crypt /etc/crypttab && sed -i "s/boot_crypt UUID=[a-f0-9\-]\+.\+//g" /etc/crypttab
+    grep ^boot_crypt /etc/crypttab && sed -i "s/^\(boot_crypt UUID=[a-f0-9\-]\+.\+\)/\# \1 - archived on '$(date +%Y%m%d )'/g" /etc/crypttab
 }
 addKey(){
     removeKey
