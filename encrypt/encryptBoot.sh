@@ -43,21 +43,30 @@ mkfsAndCopy(){
   fs=$1
   dvc=$2
   [ -z "$fs" ] && fs=ext4
-  mkfs.$fs -m0 $dvc
+  if [[ "$fs" == "xfs" ]]; then
+    mkfs.$fs $dvc
+  else
+    mkfs.$fs -m0 $dvc
+  fi
   refreshFSTab $3
   mountBoot
   tar -C /boot --acls --xattrs -xf /tmp/boot.tar
 }
 updateInitNGrub(){
   mount -a
-  if uname -a | grep -i "\(ubuntu\|debian\)"; then  
+  if inxi -S | grep -i "\(ubuntu\|debian\)"; then  
     update-initramfs -u -k all
     update-grub
     grub-install
-  elif uname -a | grep -i "\(fedora\|centos\)"; then
-    dracut --regenerate-all
-    grub2-mkconfig -o "$(readlink -e /etc/grub-efi.cfg )"
-    grub2-install
+  elif inxi -S | grep -i "\(fedora\|centos\)"; then
+    echo "install_items+= /root/.keys/.*.key" | tee -a /etc/dracut.conf.d/cryptodisk.conf
+    dracut -vf --regenerate-all
+    echo GRUB_ENABLE_CRYPTODISK=y | tee -a /etc/ddefault/grub
+    grub2-mkconfig -o /boot/grub2/grub.cfg #"$(readlink -e /etc/grub-efi.cfg )"
+#    uuid1=$(blkid -s UUID -o value /dev/mapper/boot_crypt )
+#    uuid2=${uuid1//'-'/''}
+#    sed "s/\(search \-\-no\-floppy \-\-fs\-uuid \-\-set=dev \)\($uuid\)/cryptomount -u $uuid2\n\1\-\-hint='cryptouuid=/$uuid2' \2" /boot/efi/EFI/fedora/grub.cfg
+#    dnf reinstall shim-\* grub2-efi-\* grub2-common -y
   else
     uname -a 
     echo system not supported - update initramfs and grub manually
@@ -84,7 +93,7 @@ createLuks1Boot(){
     runCmd chmod 0600 $kyfl && \
     runCmd cryptsetup luksAddKey $btDvc $kyfl && \
     runCmd addKey && \
-    runCmd cryptdisks_start boot_crypt && \
+    runCmd cryptsetup luksOpen $btDvc boot_crypt --key-file $kyfl && \
     runCmd mkfsAndCopy $fs /dev/mapper/boot_crypt && \
     runCmd updateInitNGrub
 #  echo install -m0600 /dev/null /tmp/boot.tar
