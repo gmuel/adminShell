@@ -50,9 +50,20 @@ mkfsAndCopy(){
 }
 updateInitNGrub(){
   mount -a
-  update-initramfs -u -k all
-  update-grub
-  grub-install
+  if uname -a | grep -i "\(ubuntu\|debian\)"; then  
+    update-initramfs -u -k all
+    update-grub
+    grub-install
+  elif uname -a | grep -i "\(fedora\|centos\)"; then
+    dracut --regenerate-all
+    grub2-mkconfig -o "$(readlink -e /etc/grub-efi.cfg )"
+    grub2-install
+  else
+    uname -a 
+    echo system not supported - update initramfs and grub manually
+    return -1
+  fi
+
 }
 includeKey(){
   sed -i.1 "s/\(UUID=$1\) none \(luks\(,discard\)\?\)/\1 ${kyfl//'/'/'\/'} \2/g" /etc/crypttab
