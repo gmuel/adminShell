@@ -69,8 +69,8 @@ if [ ! -z "$sbvl" ]; then
     chl_vol="$vol_str$child_vol"
     prn_vol="$vol_str$parent_vol"
     fl=
-    pr_chk=$(btrs list $dr | grep "$parent_vol" )
-    ch_chk=$(btrs list $dr | grep "$child_vol" )
+    pr_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$parent_vol" )
+    ch_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$child_vol" )
     if [[ -n "$pr_chk" && -z "$ch_chk" ]]; then
         echo "btr send -p $prn_vol $chl_vol | btr receive $dr"
         btr send -p "$prn_vol" "$chl_vol" | btr receive $dr && \
