@@ -3,10 +3,13 @@
 getSwap(){
     blkid -o device -t TYPE=swap
 }
-
+getUUID(){
+    blkid -s UUID -o value $1
+}
 setup_hibernate() {
     dvc=$(getSwap )
-    local resume_params="resume=UUID=$(blkid -s UUID -o value $dvc ) "
+    uuid=$(getUUID /dev/nvme0n1p2 )
+    local resume_params="resume=$dvc rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=\/etc\/cryptsetup-keys.d\/luks-${uuid}.key "
     
     echo
     echo "Setting up hibernation."
@@ -20,6 +23,11 @@ setup_hibernate() {
     else
         sed -i "s/\(quiet \)/$resume_params\1/" $confFl
     fi
+    confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
+    cat << EOI >> $confFL
+add_dracutmodules+=" resume "
+install_items+=" "
+EOI
     # update-grub
 
     # Adds device major:minor numbers in resume configuration
@@ -69,6 +77,7 @@ polkit.addRule(function(action, subject) {
 });
 EOB
     echo "Rebuilding initram and boot options"
+    apt install -y plymouth plymouth-themes plymouth-label firefox
     /etc/kernel/postinst.d/zzz-dracut-regenerate-all
     echo
     echo "Hibernation setup completed."
