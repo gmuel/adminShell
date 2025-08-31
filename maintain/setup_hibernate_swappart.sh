@@ -8,8 +8,12 @@ getUUID(){
 }
 setup_hibernate() {
     dvc=$(getSwap )
-    uuid=$(getUUID /dev/nvme0n1p2 )
-    local resume_params="resume=$dvc rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=\/etc\/cryptsetup-keys.d\/luks-${uuid}.key "
+    [ -z "$dvc" ] && echo "ERROR: no swap device found - please setup a swap device before running this script" && return 2
+    rtd=$1
+    [ -z "$rtd" ] && echo "ERROR: (encrypted) swap device required, in a standard install, /dev/nvme0n1p2, or /dev/sda3,..." && return 1
+    uuid=$(getUUID  $rtd )
+    kyfl=/etc/cryptsetup-keys.d/luks-${uuid}.key
+    local resume_params="resume=${dvc//'/'/'\/'} rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
     
     echo
     echo "Setting up hibernation."
@@ -23,10 +27,10 @@ setup_hibernate() {
     else
         sed -i "s/\(quiet \)/$resume_params\1/" $confFl
     fi
+    sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
     confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
-    cat << EOI >> $confFL
-add_dracutmodules+=" resume "
-install_items+=" "
+    cat << EOI > $confFL
+install_items+=" $kyfl "
 EOI
     # update-grub
 
@@ -34,7 +38,7 @@ EOI
     majmin=$(lsblk -o MAJ:MIN $dvc | tail -1 )
     echo $majmin > /sys/power/resume
     fl=/etc/tmpfiles.d/hibernation_resume.conf
-    cat << EOI >> $fl
+    cat << EOI > $fl
 #    Path                   Mode UID  GID  Age Argument
 w    /sys/power/resume       -    -    -    -   $majmin
 EOI
