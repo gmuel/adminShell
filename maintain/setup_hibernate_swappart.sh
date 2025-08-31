@@ -13,7 +13,7 @@ setup_hibernate() {
     [ -z "$rtd" ] && echo "ERROR: (encrypted) swap device required, in a standard install, /dev/nvme0n1p2, or /dev/sda3,..." && return 1
     uuid=$(getUUID  $rtd )
     kyfl=/etc/cryptsetup-keys.d/luks-${uuid}.key
-    local resume_params="resume=${dvc//'/'/'\/'} rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
+    local resume_params="resume=${dvc//'/'/'\/'} " # "rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
     
     echo
     echo "Setting up hibernation."
@@ -29,7 +29,7 @@ setup_hibernate() {
     fi
     sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
     confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
-    cat << EOI > $confFL
+    cat << EOI >> $confFL
 install_items+=" $kyfl "
 EOI
     # update-grub
