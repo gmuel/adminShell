@@ -27,7 +27,7 @@ setup_hibernate() {
     else
         sed -i "s/\(quiet \)/$resume_params\1/" $confFl
     fi
-    sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
+#    sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
     confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
     cat << EOI >> $confFL
 install_items+=" $kyfl "
