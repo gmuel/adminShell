@@ -13,7 +13,7 @@ setup_hibernate() {
     [ -z "$rtd" ] && echo "ERROR: (encrypted) swap device required, in a standard install, /dev/nvme0n1p2, or /dev/sda3,..." && return 1
     uuid=$(getUUID  $rtd )
     kyfl=/etc/cryptsetup-keys.d/luks-${uuid}.key
-    local resume_params="resume=${dvc//'/'/'\/'} " # "rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
+    local resume_params="resume=UUID=$(get UUID $dvc) " # "rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
     
     echo
     echo "Setting up hibernation."
@@ -21,18 +21,26 @@ setup_hibernate() {
     echo
     
     # Adds kernel parameter in grub boot configuration file
-    confFl=/etc/dracut.conf.d/90-tpm2.conf
+    confFl=
+    if [ -d /etc/dracut.conf.d/ ]; then
+        confFl=/etc/dracut.conf.d/90-tpm2.conf
+    else
+        confFl=/etc/default/grub
+    fi
     if grep resume $confFl > /dev/null; then
         sed -i "s/resume=.\+ \(resume_offset=[0-9] \)\?\+/$resume_params/" $confFl
     else
         sed -i "s/\(quiet \)/$resume_params\1/" $confFl
     fi
 #    sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
-    confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
-    cat << EOI >> $confFL
+    if echo $confFl | grep -q dracut ; then
+        confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
+        cat << EOI >> $confFL
 install_items+=" $kyfl "
 EOI
-    # update-grub
+    else
+        update-grub
+    fi
 
     # Adds device major:minor numbers in resume configuration
     majmin=$(lsblk -o MAJ:MIN $dvc | tail -1 )
@@ -81,8 +89,12 @@ polkit.addRule(function(action, subject) {
 });
 EOB
     echo "Rebuilding initram and boot options"
-    apt install -y plymouth plymouth-themes plymouth-label firefox
-    /etc/kernel/postinst.d/zzz-dracut-regenerate-all
+    #apt install -y plymouth plymouth-themes plymouth-label firefox
+    if echo $confFl | grep -q dracut; then
+        /etc/kernel/postinst.d/zzz-dracut-regenerate-all
+    else   
+        update-initramfs -u -k all
+    fi
     echo
     echo "Hibernation setup completed."
     echo "Please reboot your system for all changes to take effect."
