@@ -1,4 +1,31 @@
 # Setup Hibernate
+# Adapted from https://forums.linuxmint.com/viewtopic.php?t=425394 comment/script @random person
+
+helptext(){
+
+    cat << EOH
+ $1 [OPTIONS] SWAP_DEVICE
+
+    Setup hibernation for grub/dracut based distros with existing swap 
+    partition (NO file support, see original script for swap file)
+    
+    NOTE:   this script WILL alter your default kernel command line, test first (on a VM,...)    
+            and backup your data before testing it on a live machine
+            Any misconfig can lead to an unbootable system(!)
+    
+    Arguments:
+        -   SWAP_DEVICE swap device, encrypted, lvm root device or encrypted lvm root (NOT decrypted)
+                        use blkid -o device -t TYPE={crypto_LUKS,LVM2} to figure which device
+
+    Options:
+        -h/--help       print this message
+
+    Exit codes:
+        0   no issue occurred
+        1   no required swap root device given
+        2   no swap partition found
+EOH
+}
 
 getSwap(){
     blkid -o device -t TYPE=swap
@@ -7,23 +34,24 @@ getUUID(){
     blkid -s UUID -o value $1
 }
 setup_hibernate() {
+    [[ "$1" == "-h" || "$1" == "--help" ]] && help_txt 'setup_hibernate' && return 0
     dvc=$(getSwap )
     [ -z "$dvc" ] && echo "ERROR: no swap device found - please setup a swap device before running this script" && return 2
     rtd=$1
     [ -z "$rtd" ] && echo "ERROR: (encrypted) swap device required, in a standard install, /dev/nvme0n1p2, or /dev/sda3,..." && return 1
-    uuid=$(getUUID  $rtd )
-    kyfl=/etc/cryptsetup-keys.d/luks-${uuid}.key
-    local resume_params="resume=UUID=$(getUUID $dvc) " # "rd.luks.name=$(getUUID $dvc )=swap rd.luks.key=${kyfl//'/'/'\/'} "
+    uuid=$(getUUID $rtd )
+    uuis=$(getUUID $dvc )
+    local resume_params="rd\.luks\.uuid=luks\-$uuis rd\.lvm.lv=main_vol\/root rd\.lvm.lv=main_vol\/swap resume=UUID=$uuis "
     
     echo
     echo "Setting up hibernation."
     echo "Please wait..."
     echo
     
-    # Adds kernel parameter in grub boot configuration file
+    # Adds kernel parameter in grub boot configuration file/dracut kernel_cmdline config file
     confFl=
     if [ -d /etc/dracut.conf.d/ ]; then
-        confFl=/etc/dracut.conf.d/90-tpm2.conf
+        confFl=$(find /etc/dracut.conf.d/ -type f -name "*.conf" -exec grep -l kernel_cmdline {} + )
     else
         confFl=/etc/default/grub
     fi
@@ -32,11 +60,15 @@ setup_hibernate() {
     else
         sed -i "s/\(quiet \)/$resume_params\1/" $confFl
     fi
-#    sed -i "s/ quiet splash/ BOOT_DEBUG=3 noplymouth/g" $confFl
+    
+    # for dracut add a new conf with resume mod and explicit service inclusion
+    # for grub: rebuild config
     if echo $confFl | grep -q dracut ; then
         confFl=/etc/dracut.conf.d/resume-from-hibernate.conf
+        srvcFl=$(find /usr/lib -type f -name "systemd-hibernate-resume.service" )
         cat << EOI >> $confFL
-install_items+=" $kyfl "
+add_dracutmodules+=" resume "
+install_items+=" $srvcFl "
 EOI
     else
         update-grub
@@ -78,11 +110,11 @@ EOB
     [ ! -d $dr ] && mkdir -p $dr
     tee $dr/10-enable-hibernate.rules << 'EOB' >/dev/null
 polkit.addRule(function(action, subject) {
-    if (action.id == \"org.freedesktop.login1.hibernate\" ||
-        action.id == \"org.freedesktop.login1.hibernate-multiple-sessions\" ||
-        action.id == \"org.freedesktop.upower.hibernate\" ||
-        action.id == \"org.freedesktop.login1.handle-hibernate-key\" ||
-        action.id == \"org.freedesktop.login1.hibernate-ignore-inhibit\")
+    if (action.id == "org.freedesktop.login1.hibernate" ||
+        action.id == "org.freedesktop.login1.hibernate-multiple-sessions" ||
+        action.id == "org.freedesktop.upower.hibernate" ||
+        action.id == "org.freedesktop.login1.handle-hibernate-key" ||
+        action.id == "org.freedesktop.login1.hibernate-ignore-inhibit")
     {
         return polkit.Result.YES;
     }
