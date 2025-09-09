@@ -80,9 +80,10 @@ declare -a uuids=( $(cut -d' ' -f1 $devFile ) )
 echo ${uuids[@]}
 printKeyFile(){
     printHelp "$1" "printKeyFile" && return 0
-    for i in ${uuids[@]}; do
-        blkid | grep $i | grep -q $(echo $1 | sed "s/[0-9]\$//g" ) && mapUUID $i && break
-    done
+#    for i in ${uuids[@]}; do
+#        blkid | grep $i | grep -q $(echo $1 | sed "s/[0-9]\$//g" ) && mapUUID $i && break
+#    done
+    echo luks-$(getUUID $1 ).key
 }
 mapUUID(){
     printHelp "$1" "mapUUID" && return 0
@@ -96,9 +97,11 @@ listExternalLUKS(){
 }
 decrypt(){
     printHelp "$1" "decrypt" && return 0
-    ky_fl=$(printKeyFile $1 )
+    ky_fl=$(printKeyFile /dev/$1 )
     [ -z "$ky_fl" ] && return -1
-    cryptsetup luksOpen $2 ${1}_crypt --key-file /root/.keys/$ky_fl    
+    cmd="cryptsetup luksOpen $2 ${1}_crypt --key-file /etc/cryptsetup-keys.d/$ky_fl"
+    echo $cmd
+    eval $cmd
 }
 declare -a mounted_dirs=( ${mounted_dirs[@]} )
 mountTemp(){

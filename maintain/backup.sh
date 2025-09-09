@@ -49,7 +49,7 @@ fi
 echo "backup subvol suffix found: $backvol"
 UUID=
 sbvl=
-dvc=$(blkid | grep LUKS | grep "\(4c4656d9-9093-4bbc-9962-baf3c8cb8fe4\|62bc1b28-ab06-4e28-8167-2fe0e3c9499d\)" | sed "s/\(\/dev\/sd[a-z][23]\).\+/\1/g" )
+dvc=$(blkid | grep LUKS | grep "\(dac895e7-151b-4894-98b1-5d7165ff8c76\|62bc1b28-ab06-4e28-8167-2fe0e3c9499d\)" | sed "s/\(\/dev\/sd[a-z][1-9]\).\+/\1/g" )
 echo $dvc used as backup
 UUID=$(blkid -s UUID -o value $dvc )
 echo having UUID $UUID
@@ -69,8 +69,8 @@ if [ ! -z "$sbvl" ]; then
     chl_vol="$vol_str$child_vol"
     prn_vol="$vol_str$parent_vol"
     fl=
-    pr_chk=$(btrs list $dr | grep "$parent_vol" )
-    ch_chk=$(btrs list $dr | grep "$child_vol" )
+    pr_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$parent_vol" )
+    ch_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$child_vol" )
     if [[ -n "$pr_chk" && -z "$ch_chk" ]]; then
         echo "btr send -p $prn_vol $chl_vol | btr receive $dr"
         btr send -p "$prn_vol" "$chl_vol" | btr receive $dr && \
