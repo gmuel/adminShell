@@ -106,7 +106,7 @@ createLuks1Boot(){
     runCmd install -m0600 /dev/null /tmp/boot.tar && \
     runCmd tar -C /boot --acls --xattrs --one-file-system -cf /tmp/boot.tar . && \
     runCmd umountBoot && \
-    runCmd dd if=/dev/urandom of=\$btDvc bs=1M status=none # && \
+    runCmd wipeBoot # && \
     runCmd cryptsetup luksFormat --type luks1 $btDvc && \
     runCmd uuid=$(blkid -o value -s UUID $btDvc) && \
     runCmd createKeyFile && \
@@ -178,4 +178,31 @@ EOH
   mkfsAndCopy $fs $btDvc rollback
   removeKey
   updateInitNGrub
+}
+
+wipeBoot(){
+    rtd=$(echo $btDvc | sed "s/[0-9]\+/\$//g" )
+    did=$(echo $btDvc | sed "s/.\+\([0-9]\$\)/\1/g")
+    dsz=$(parted -s --list $rtd | grep "^ $did" | sed "s/\s\{2,\}/ /" | cut -d' ' -f5  )
+    fct=1
+    szflg=$(echo $dsz | sed "s/[0-9]\+//g" )
+    case "$szflg" in
+    'MB')
+       fct=250 # = 1 MB divided by 4KB blocks
+       ;;
+     'M')
+        fct=256
+        ;;
+     'GB')
+        fct=250000
+        ;;
+     'G')
+        fct=$((256*1024))
+        ;;
+      *)
+        return 1
+        ;;
+     esac
+    dsz=${dsz//"$szflg"/}
+    runCmd dd if=/dev/urandom of=\$btDvc bs=4k count=$(($dsz*$fct)) seek=1 status=progress
 }
