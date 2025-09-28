@@ -1,26 +1,27 @@
 #!/bin/bash
+[ -z "$DB2CLIINIPATH" ] &&  source $(find ~ -type f -name startMQ_ACEShell.sh | head -1 )
 ws=$1
 [ -z "$ws" ] && ws=$(find ~ -type d -name GeneratedBarFiles | tail -1 ) # && ws=$(dirname $ws )/
 buildApp(){
-    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basics/ -k $1
+    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basic/ -k $1
 }
 
 buildLib(){
-    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basics/ -y $1
+    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basic/ -y $1
 }
 
 build(){
-    if [ -d ~/git/eai_basics/$1 ]; then
-        if [ -f ~/git/eai_basics/${1}/library.descriptor ] || [ -f ~/git/eai_basics/${1}library.descriptor ]; then
-            buildLib $1
+    if [ -d ~/git/eai_basic/$1 ]; then
+        if [ -f ~/git/eai_basic/${1}/library.descriptor ] || [ -f ~/git/eai_basic/${1}library.descriptor ]; then
+            buildLib $@
         else
-            buildApp $1
+            buildApp $@
         fi
     fi
 }
 
 deploy(){
-    mqsideploy $BRK -e default -a $1
+    mqsideploy $BRK -e $2 -a $1
 }
 
 
