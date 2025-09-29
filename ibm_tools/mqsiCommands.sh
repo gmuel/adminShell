@@ -1,18 +1,26 @@
 #!/bin/bash
 [ -z "$DB2CLIINIPATH" ] &&  source $(find ~ -type f -name startMQ_ACEShell.sh | head -1 )
 ws=$1
-[ -z "$ws" ] && ws=$(find ~ -type d -name GeneratedBarFiles | tail -1 ) # && ws=$(dirname $ws )/
+[ -z "$ws" ] && echo no workspace given - aborting && return -1
+bs=$2
+[ -z "$bs" ] && bs=$(find ~ -type d -name GeneratedBarFiles | tail -1 ) # && ws=$(dirname $ws )/
 buildApp(){
-    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basic/ -k $1
+    br=${bs}/${1}.bar
+    mqsipackagebar -a $br -w $ws -k $1
+    echo $br
 }
 
 buildLib(){
-    mqsipackagebar -a ${ws}/${1}.bar -w ~/git/eai_basic/ -y $1
+    br=${bs}/${1}.bar
+    mqsipackagebar -a $br -w $ws -y $1
+    echo $br
 }
 
 build(){
-    if [ -d ~/git/eai_basic/$1 ]; then
-        if [ -f ~/git/eai_basic/${1}/library.descriptor ] || [ -f ~/git/eai_basic/${1}library.descriptor ]; then
+    if [ -d ${ws}/$1 ] || [ -d ${ws}$1 ]; then
+        dr=${ws/%'/'/}$1
+        echo "~/git/eai_basic/$1 found"
+        if [ -f $dr/library.descriptor ]; then
             buildLib $@
         else
             buildApp $@
