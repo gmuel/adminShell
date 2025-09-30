@@ -28,6 +28,10 @@ build(){
     fi
 }
 
+compile(){
+    mqsicreatebar -data $ws -b $2 -a $1 -compileOnly
+}
+
 deploy(){
     mqsideploy $BRK -e $2 -a $1
 }
