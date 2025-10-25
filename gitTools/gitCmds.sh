@@ -2,13 +2,29 @@
 if ! echo $PATH | grep -q '~/bin'; then
   export PATH="$PATH:~/bin"
 fi
+stripSpaces(){
+  sed "s/\s\+/%/g"
+}
+getStripSpaces(){
+  cut -d% -f$1
+}
+thirdCol(){
+  stripSpaces | getStripSpaces 3
+}
 alias branch="git status | grep \"\(On branch\|Auf Branch\)\" | sed \"s/\(On branch \|Auf Branch \)//g\""
 alias status="git status"
 alias push="git push origin \$(branch )"
 alias pull="git pull origin \$(branch )"
 alias findBranch="git branch --list | grep"
-alias modified='git status | grep -v "\(both modified\|beide geändert\)" | grep "\(modified\|geändert\)" | sed "s/\s\+/%/g" | cut -d % -f3'
-alias bothMod='git status | grep "\(both modified\|beide geändert\)" | sed "s/\s\+/%/g" | cut -d % -f3'
+modified(){
+  git status | grep -v "\(both modified\|beide geändert\)" | grep "\(modified\|geändert\)" | thirdCol
+}
+bothMod(){
+  git status | grep "\(both modified\|beide geändert\)" | thirdCol
+}
+renamed(){
+  git status | grep "\(renamed\|umbenannt\)" | thirCol
+}
 updateBranch(){
   base_brnch=$2
   brnch=$1
