@@ -16,11 +16,11 @@ $0 [options] [arg] - create backup arg/@date_string for any mount btrfs fs
 
 EOH
 }
-
+mp_fl=/home/gab2/bin/backup.map
 allUUIDs(){
 	str=
-	for i in $(cut -d' ' -f1 backup.map ); do
-		str="$str\\\|$i"
+	for i in $(cut -d' ' -f1 $mp_fl ); do
+		[ -z "$str" ] && str=$i || str="$str\|$i"
 	done
 	echo $str
 }
@@ -36,7 +36,7 @@ if [ -z "$backvol" ]; then
 	[ ! -f $tmp_fl ] && inxi -M >> $tmp_fl
 	if grep XPS $tmp_fl; then
     	backvol=2
-	elif grep "\(VirtualBox\|QEMU\)" $tmp_fl
+	elif grep "\(VirtualBox\|QEMU\)" $tmp_fl; then
 		backvol=3
 	else
     	backvol=1
@@ -61,8 +61,9 @@ if [ ! -d $vol_str ]; then
 fi
 
 cd $vol_str
+pwd
 dt_str=$(date +%Y%m%d)
-parent_vol=$(btrs list ./ | grep -v "@$dt_str" | grep "@20\(2[4-9]\|[3-9][0-9]\)" | tail -1 | cut -d' ' -f9 )
+parent_vol=$(btrs list ./ | grep -v "@$dt_str" | cut -d' ' -f9 | grep "^@20\(2[4-9]\|[3-9][0-9]\)" | tail -1 )
 
 if [[ "$?" != "0" || -z "$parent_vol" ]]; then
     echo "No suitable subvol found for parent in $vol_str"
@@ -71,7 +72,7 @@ fi
 
 echo Found parent volume "$vol_str$parent_vol"
 
-child_vol=$(btrs list ./ | grep "@$dt_str" | tail -1 | cut -d' ' -f9 | sed "s/\/\?\(.\+\)/\/\1/g" | grep ".\+")
+child_vol=$(btrs list ./ | cut -d' ' -f9 | grep "^@$dt_str" | tail -1 | sed "s/\/\?\(.\+\)/\/\1/g" | grep ".\+")
 
 if [ -z "$child_vol" ]; then # no child subvol -> create new snapshot,
     child_vol=$(btrs snapshot -r $vol_str "@$dt_str" | grep -q "Create" && echo "@$dt_str" )
@@ -88,7 +89,7 @@ dvc=$(blkid | grep LUKS | grep "\($(allUUIDs )\)" | sed "s/\(\/dev\/sd[a-z][1-9]
 echo $dvc used as backup
 UUID=$(blkid -s UUID -o value $dvc )
 echo having UUID $UUID
-sbvl="$(grep $UUID backup.map | cut -d' ' -f2 )$backvol"
+sbvl="$(grep $UUID $mp_fl | cut -d' ' -f2 )"
 ssvl=@home
 if echo $vol_str | grep -v home; then
     if echo $vol_str | grep var; then
@@ -98,20 +99,21 @@ if echo $vol_str | grep -v home; then
     else
         ssvl=@root
     fi
+    ssvl=${ssvl}$backvol
     # sbvl=$(echo sbvl | sed "s/home/$ssvl/g" )
 fi
 echo backup subvol found: $sbvl
 if [ ! -z "$sbvl" ]; then 
     dvc=$(echo $dvc | sed "s/\/dev\///g" )
     if [ -z "$(mount | grep $dvc )" ]; then
-        [ -z "BACK_UP_REC_CALL" ] && mountLuksDev $dvc gab2 $sbvl
+        [ -z "$BACK_UP_REC_CALL" ] && mountLuksDev $dvc gab2 $sbvl/$ssvl || mountTemp gab2 /dev/mapper/${dvc}_crypt /dev/$dvc $sbvl/$ssvl rw
     fi
     if [ -z "$(mount | grep $dvc | grep $UUID )" ]; then
         echo luks mount failed for $dvc and subvol $sbvl
         exit -2
     fi
     echo backup subvol mounted
-    dr=/media/gab2/$UUID/$ssvl
+    dr=/media/gab2/$UUID/
     chl_vol="$vol_str$child_vol"
     prn_vol="$vol_str$parent_vol"
     fl=
@@ -120,8 +122,9 @@ if [ ! -z "$sbvl" ]; then
     ch_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$child_vol" )
     if [[ -n "$pr_chk" && -z "$ch_chk" ]]; then
         echo "btr send -p $prn_vol $chl_vol | btr receive $dr"
-        if ! btr send -p "$prn_vol" "$chl_vol" | btr receive $dr; then
+        if btr send -p "$prn_vol" "$chl_vol" | btr receive $dr; then
 			echo "Child vol: \"$chl_vol\" of parent vol: \"$prn_vol\" sent to '$dr'"
+        else
 			ext=-4            
 			fl=fail
 		fi
@@ -136,6 +139,7 @@ if [ ! -z "$sbvl" ]; then
 			fl=rec_call
 		fi
         if [[ "$sz" > "1" ]]; then
+            umountTemp $dr
 			if ! $0 ${args[@]:1}; then
 				ext=$?
 				fl=fail_rec
@@ -145,7 +149,8 @@ if [ ! -z "$sbvl" ]; then
     if [[ -z "$fl" ]]; then
 		umountLuksDev $dvc gab2
 	elif [[ "$fl" == "rec_call" ]]; then
-               # skip
+        
+        exit 0
 	else
 		echo "backup failed with flag '$fl' - check device $dvc for issues"
 		exit $ext
