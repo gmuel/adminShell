@@ -99,9 +99,9 @@ if echo $vol_str | grep -v home; then
     else
         ssvl=@root
     fi
-    ssvl=${ssvl}$backvol
     # sbvl=$(echo sbvl | sed "s/home/$ssvl/g" )
 fi
+ssvl=${ssvl}$backvol
 echo backup subvol found: $sbvl
 if [ ! -z "$sbvl" ]; then 
     dvc=$(echo $dvc | sed "s/\/dev\///g" )
