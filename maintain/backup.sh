@@ -54,6 +54,17 @@ echo $dvc used as backup
 UUID=$(blkid -s UUID -o value $dvc )
 echo having UUID $UUID
 sbvl="$(grep $UUID /home/gab2/bin/backup.map | cut -d' ' -f2 )$backvol"
+if echo $vol_str | grep -v home; then
+    ssvl=
+    if echo $vol_str | grep var; then
+        ssvl=var
+    elif echo $vol_str | grep opt; then
+        ssvl=opt
+    else
+        ssvl=root
+    fi
+    sbvol=$(echo sbvl | sed "s/home/$ssvl/g" )
+fi
 echo backup subvol found: $sbvl
 if [ ! -z "$sbvl" ]; then 
     dvc=$(echo $dvc | sed "s/\/dev\///g" )
@@ -78,6 +89,10 @@ if [ ! -z "$sbvl" ]; then
                 fl=0
     elif [[ -n "$pr_chk" && -n "$ch_chk" ]]; then
         echo both volumes found - nothing to do
+    fi
+    declare -a args=( $@ )
+    if [[ ${#args[@]} != 0 ]]; then
+        $0 ${args[@:1:]}
     fi
     [ -z "$fl" ] && umountLuksDev $dvc gab2 || echo "backup failed - check device $dvc for issues"
 fi
