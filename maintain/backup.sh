@@ -89,29 +89,29 @@ echo $dvc used as backup
 UUID=$(blkid -s UUID -o value $dvc )
 echo having UUID $UUID
 sbvl="$(grep $UUID backup.map | cut -d' ' -f2 )$backvol"
+ssvl=@home
 if echo $vol_str | grep -v home; then
-    ssvl=
     if echo $vol_str | grep var; then
-        ssvl=var
+        ssvl=@var
     elif echo $vol_str | grep opt; then
-        ssvl=opt
+        ssvl=@opt
     else
-        ssvl=root
+        ssvl=@root
     fi
-    sbvol=$(echo sbvl | sed "s/home/$ssvl/g" )
+    # sbvl=$(echo sbvl | sed "s/home/$ssvl/g" )
 fi
 echo backup subvol found: $sbvl
 if [ ! -z "$sbvl" ]; then 
     dvc=$(echo $dvc | sed "s/\/dev\///g" )
     if [ -z "$(mount | grep $dvc )" ]; then
-        mountLuksDev $dvc gab2 $sbvl
+        [ -z "BACK_UP_REC_CALL" ] && mountLuksDev $dvc gab2 $sbvl
     fi
     if [ -z "$(mount | grep $dvc | grep $UUID )" ]; then
         echo luks mount failed for $dvc and subvol $sbvl
         exit -2
     fi
     echo backup subvol mounted
-    dr=/media/gab2/$UUID
+    dr=/media/gab2/$UUID/$ssvl
     chl_vol="$vol_str$child_vol"
     prn_vol="$vol_str$parent_vol"
     fl=
@@ -145,7 +145,7 @@ if [ ! -z "$sbvl" ]; then
     if [[ -z "$fl" ]]; then
 		umountLuksDev $dvc gab2
 	elif [[ "$fl" == "rec_call" ]]; then
-		# skip
+               # skip
 	else
 		echo "backup failed with flag '$fl' - check device $dvc for issues"
 		exit $ext
