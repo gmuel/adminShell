@@ -1,2 +1,5 @@
 #!/bin/bash
-mintupdate-cli -r list | grep . && mintupdate-cli -r upgrade -y
+if mintupdate-cli -r list | grep .; then
+    mintupdate-cli -r upgrade -y &
+fi
+flatpak update -y
