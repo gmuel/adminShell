@@ -129,11 +129,11 @@ echo "Deleting all kernel systemd-boot related boot files... Done"
 if [ -d /boot/efikeys ]; then
     echo "Now verifing signatures for all systemd-boot UKI files..."
     directory="/boot/efi/EFI/Linux"
-    if [ -d "$directory" ]; then
-        for file in "$directory"/*; do
-            if [ -f "$file" ]; then
-                echo "Now verifing signature for $file efi file..."
-                sbverify --cert /boot/efikeys/db.crt $file
+    if [ -d "\$directory" ]; then
+        for file in "\$directory"/*; do
+            if [ -f "\$file" ]; then
+                echo "Now verifing signature for \$file efi file..."
+                sbverify --cert /boot/efikeys/db.crt \$file
             fi
         done
     fi
