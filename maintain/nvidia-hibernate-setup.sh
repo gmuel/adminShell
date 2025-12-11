@@ -78,3 +78,8 @@ fl=/lib/systemd/system-sleep/nvidia
 if [ -f $fl ] && grep -v -q 'pre)' $fl ; then
     sed -i.1 "s/\(post)\)/pre)\n        \/usr\/bin\/nvidia-sleep\.sh \"suspend\"\n    \1/g" /lib/systemd/system-sleep/nvidia
 fi
+
+fl=/etc/modprobe.d/nvidia-graphics-drivers-kms.conf
+if [ -f $fl ] && grep -q 'NVreg_PreserveVideoMemoryAllocations=1'; then
+    sed -i.1 "s/\(NVreg_PreserveVideoMemoryAllocations=\)1/\10/g" $fl
+fi
