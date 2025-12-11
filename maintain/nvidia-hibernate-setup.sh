@@ -4,7 +4,10 @@ helptxt(){
     cat << EOH
 $0 [options]
     create nvidia driver required service units for hibernation/suspend-2-disk
-
+    
+    info    -   service units were taken from https://github.com/MrJimm/Ubuntu-Nvidia-GPU-hibernation-fix/tree/main
+    info    -   correction of /lib/systemd/system-sleep/nvidia taken from https://forum.artixlinux.org/index.php/topic,7425.0.html
+    
     options:
         -h/--help   print this message
 EOH

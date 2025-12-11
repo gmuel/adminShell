@@ -120,6 +120,9 @@ polkit.addRule(function(action, subject) {
     }
 });
 EOB
+    if inxi -G | grep -q nvidia ; then # nvidia requires these service units
+        ./nvidida-hibernate-setup.sh
+    fi
     echo "Rebuilding initram and boot options"
     #apt install -y plymouth plymouth-themes plymouth-label firefox
     if echo $confFl | grep -q dracut; then
