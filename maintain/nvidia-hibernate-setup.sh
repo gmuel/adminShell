@@ -12,7 +12,9 @@ $0 [options]
         -h/--help   print this message
 EOH
 }
-
+case "$1" in
+    '-h'|'--help') helptxt && exit
+esac
 fl=/etc/systemd/system/nvidia-hibernate.service
 
 if [ ! -f $fl ]; then
