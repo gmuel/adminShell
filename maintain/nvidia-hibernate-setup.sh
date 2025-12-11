@@ -17,6 +17,11 @@ case "$1" in
 esac
 fl=/etc/systemd/system/nvidia-hibernate.service
 
+
+if  ! inxi -G | grep -q nvidia; then
+    echo no nvidia drivers currently used - nothing to do && exit
+fi
+
 if [ ! -f $fl ]; then
     cat << EOI >> $fl
 [Unit]
@@ -75,7 +80,7 @@ EOI
 fi
 
 fl=/lib/systemd/system-sleep/nvidia
-if [ -f $fl ] && grep -v -q 'pre)' $fl ; then
+if [ -f $fl ] && ! grep -q 'pre)' $fl ; then
     sed -i.1 "s/\(post)\)/pre)\n        \/usr\/bin\/nvidia-sleep\.sh \"suspend\"\n    \1/g" /lib/systemd/system-sleep/nvidia
 fi
 
