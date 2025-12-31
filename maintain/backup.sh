@@ -26,7 +26,7 @@ if [ ! -d $vol_str ]; then
 fi
 cd $vol_str
 dt_str=$(date +%Y%m%d)
-parent_vol=$(btrs list ./ | grep -v "@$dt_str" | grep "\s\+@20\(2[4-9]\|[3-9][0-9]\)" | tail -1 | cut -d' ' -f9 )
+parent_vol=$(btrs list ./ | grep -v "^@$dt_str" | grep "@20\(2[4-9]\|[3-9][0-9]\)" | tail -1 | cut -d' ' -f9 )
 if [[ "$?" != "0" || -z "$parent_vol" ]]; then
     echo "No suitable subvol found for parent in $vol_str"
     exit -1
