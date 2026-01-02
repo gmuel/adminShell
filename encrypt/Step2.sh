@@ -3,7 +3,7 @@
 
 helptxt(){
     cat << EOH
-$0 [options] DISK_DEVICE [LVM_FLAGS]
+$0 [options] DISK_DEVICE [LVM_FLAGS [SWAP_SIZE]]
 
     Create a two partition disk on DISK_DEVICE with the second partition as a crypto_LUKS part(!)
     
@@ -18,6 +18,7 @@ $0 [options] DISK_DEVICE [LVM_FLAGS]
                         required argument
         LVM_FLAGS   -   'nolvm' use this flag as second argument to create a single BTRFS fs on second partition
                         'size' integer indicator for volume size of root volume  in GB (/dev/mapper/main_vol-root), default is 16GB
+        SWAP_SIZE   -   swap size,  sum of LVM_FLAGS and SWAP_SIZE must not exceed disk device size 
 
     Options:
         -h/--help       print this message
@@ -26,6 +27,7 @@ $0 [options] DISK_DEVICE [LVM_FLAGS]
     Usage:
         $0 /dev/sda nolvm   ->  create encrypted root with single BTRFS partition
         $0 /dev/sda 16      ->  create encrypted root with LVM on top, root volume with size 16GB
+        $0 /dev/sda 16 4    ->  create encrypted root with LVM on top, root volume with size 16GB and 4G swap volume
 EOH
 }
 version(){
@@ -63,7 +65,7 @@ parted -s ${rtd} set 1 boot on
 
 parted -s  -a optimal ${rtd} mkpart primary 2049MiB 100%
 
-cryptsetup -v --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf pbkdf2 --pbkdf-force-iterations 50000 --use-random luksFormat --type luks2 ${dvc} 
+cryptsetup -v --cipher aes-xts-plain64 --key-size 512 --hash sha512 --pbkdf pbkdf2 --pbkdf-force-iterations 100000 --use-random luksFormat --type luks2 ${dvc} 
 uuid=$(blkid -s UUID -o value $dvc )
 lxid=luks-$uuid
 cryptsetup luksOpen ${dvc}  $lxid
@@ -77,9 +79,14 @@ else
     pvcreate $dmd
     vgcreate main_vol $dmd
     sz=$(vgdisplay | grep 'VG Size' | sed "s/\s\+/ /g" | cut -d' ' -f4 | sed "s/\([0-9]\+\)\..\+/\1/g" )
-    [ -z $lz ] && lz=$(min 16 $(($sz/4)) ) || lz=$2
+    [ -z "$lz" ] && lz=$(min 16 $(($sz/4)) )
     lvcreate -L ${lz}G -n root main_vol
-    lvcreate -L $(($sz-$lz))G -n home main_vol
+    if [ -n "$3" ] && echo $3 | grep -q "^[0-9]\+\$" && [ "$(($sz-$lz-$3))" -gt "0" ]; then
+        lvcreate -L ${3}G -n swap main_vol
+        lvcreate -L $(($sz-$lz-$3))G -n home main_vol
+    else
+        lvcreate -L $(($sz-$lz))G -n home main_vol
+    fi
 fi
 #mkdir -p /boot/efi/EFI/Boot
 apt-cdrom add /dev/sr0

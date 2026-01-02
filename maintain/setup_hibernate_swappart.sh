@@ -76,7 +76,7 @@ EOI
 
     # Adds device major:minor numbers in resume configuration
     majmin=$(lsblk -o MAJ:MIN $dvc | tail -1 )
-    echo $majmin > /sys/power/resume
+    echo $majmin | tee /sys/power/resume
     fl=/etc/tmpfiles.d/hibernation_resume.conf
     cat << EOI > $fl
 #    Path                   Mode UID  GID  Age Argument
@@ -120,6 +120,9 @@ polkit.addRule(function(action, subject) {
     }
 });
 EOB
+    if inxi -G | grep -q nvidia ; then # nvidia requires these service units
+        ./nvidida-hibernate-setup.sh
+    fi
     echo "Rebuilding initram and boot options"
     #apt install -y plymouth plymouth-themes plymouth-label firefox
     if echo $confFl | grep -q dracut; then

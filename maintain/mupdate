@@ -1,2 +1,11 @@
 #!/bin/bash
-mintupdate-cli -r list | grep . && mintupdate-cli -r upgrade -y
+flg=0
+if mintupdate-cli -r list | grep .; then
+    mintupdate-cli -r upgrade -y
+    bg
+    flg=1
+fi
+flatpak update -y
+if [[ "$flg" == "1" ]]; then
+    fg
+fi
