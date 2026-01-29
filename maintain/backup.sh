@@ -114,7 +114,7 @@ echo backup subvol found: $sbvl
 if [ ! -z "$sbvl" ]; then 
     dvc=$(echo $dvc | sed "s/\/dev\///g" )
     if [ -z "$(mount | grep $dvc )" ]; then
-        [ -z "$BACK_UP_REC_CALL" ] && mountLuksDev $dvc gab2 $sbvl # /$ssvl || mountTemp gab2 /dev/mapper/${dvc}_crypt /dev/$dvc $sbvl/$ssvl rw
+        [ -z "$BACK_UP_REC_CALL" ] && mountLuksDev $dvc gab2 $sbvl/$ssvl || mountTemp gab2 /dev/mapper/${dvc}_crypt /dev/$dvc $sbvl/$ssvl rw
     fi
     if [ -z "$(mount | grep $dvc | grep $UUID )" ]; then
         echo luks mount failed for $dvc and subvol $sbvl
@@ -129,8 +129,8 @@ if [ ! -z "$sbvl" ]; then
     pr_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$parent_vol" )
     ch_chk=$(btrs list $dr | cut -d' ' -f9 | grep "^$child_vol" )
     if [[ -n "$pr_chk" && -z "$ch_chk" ]]; then
-        echo "btr send -p $prn_vol $chl_vol | btr receive $dr/$ssvl"
-        if btr send -p "$prn_vol" "$chl_vol" | btr receive $dr/$ssvl; then
+        echo "btr send -p $prn_vol $chl_vol | btr receive $dr"
+        if btr send -p "$prn_vol" "$chl_vol" | btr receive $dr; then
 			echo "Child vol: \"$chl_vol\" of parent vol: \"$prn_vol\" sent to '$dr'"
         else
 			ext=-4            
@@ -147,7 +147,7 @@ if [ ! -z "$sbvl" ]; then
 			fl=rec_call
 		fi
         if [[ "$sz" > "1" ]]; then
-#            umountTemp $dr
+            umountTemp $dr
 			if ! $0 ${args[@]:1}; then
 				ext=$?
 				fl=fail_rec
