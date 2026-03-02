@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# taken from 	https://docs.freebsd.org/en/books/handbook/geom/
+#				https://docs.freebsd.org/en/books/handbook/zfs/
+#				https://www.freebsd.org/cgi/man.cgi
+#				https://forums.freebsd.org/threads/how-to-do-a-full-system-backup-of-freebsd-so-i-can-boot-from-it-if-my-current-system-fails.76474/
+
+
 dvc=
 backup=
 pool_name=
@@ -122,4 +128,4 @@ main(){
     prepareEFI || return $ERR_PEFI
 }
 
-main $1 $2 $3
+main $@
