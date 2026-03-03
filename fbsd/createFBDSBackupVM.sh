@@ -14,20 +14,23 @@ snap_name=
 
 ERR_DEVC=1
 ERR_BACK=2
-ERR_PART=3
-ERR_POOL=4
-ERR_SNAP=5
-ERR_CUSR=6
-ERR_MOUT=7
-ERR_PEFI=8
-ERR_NOSN=9
+ERR_NOSN=3
+ERR_PART=4
+ERR_POOL=5
+ERR_SNAP=6
+ERR_CUSR=7
+ERR_MOUT=8
+ERR_PEFI=9
 
 computeZFSSize(){
     gpart show $1 | grep '\- free \-' | tail -1 | awk '{print $2}'
 }
 
 createPartTable(){
-    gpart create -s GPT $dvc
+    gpart create -s GPT $dvc	
+}
+
+addPartFBSD(){
     gpart add -t efi -l efiboot0 -b 40 -s 260M $dvc
     gpart add -t freebsd-boot -l gptboot0 -b 532520 -s 1024 $dvc
     gpart add -t freebsd-swap -l swap0 -b 534528 -s 2G $dvc
@@ -37,11 +40,16 @@ createPartTable(){
 
     newfs_msdos -F 32 -c 1 /dev/${dvc}p1
 }
+listZFSFSs(){
+	for i in $(zfs list -rt snapshot $1 | awk '{print $1}' | grep -v "$2" ); do
+		echo $i
+	done
+}
 createPool(){
     zpool create $pool_name /dev/${dvc}p4
 }
 copyBackup(){
-    for i in $(zfs list -rt snapshot $back_pool | awk '{print $1}' | grep $snap_name | grep -v NAME ); do
+    for i in $(listZFSFSs $back_pool NAME | grep $snap_name ); do
 	    trg=$(echo $i | sed "s/$backup//g" | sed 's/@.\{1,\}//g' )
 	    zfs send $i | zfs receive $pool_name/root$trg
     done
@@ -55,7 +63,7 @@ correctUSR(){
 }
 
 adjustMounts(){
-    for i in $(zfs list -r $pool_name | awk '{print $1}' | sort -r | grep -v "\($pool_name\$\|NAME\)"); do
+    for i in $(listZFSFSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
         if [ "$i" = "$pool_name/root/ROOT/default" ]; then
             zfs set mountpoint=/ $i
         else
@@ -74,6 +82,13 @@ prepareEFI(){
     echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
 }
 
+umountClone(){
+	for i in $(mount | grep $pool_name | awk '{print $3}' | sort -r | grep -v $pool_name\$ ); do
+		zfs umount $i
+	done
+	zpool export $pool_name
+}
+
 helptxt(){
     cat << EOH
  $0 [Option] DEVICE BACKUP-POOL SNAP-SHOT [NEW-POOL]
@@ -86,32 +101,37 @@ helptxt(){
 			NOT override needed data
  
  Parameters:
-        DEVICE      block device to backup to, e.g. nda0, ada1,...
+        DEVICE      block device to recreate from backup, e.g. nda0, ada1,...
         BACKUP-POOL zfs backup dataset to recover, e.g. backup_pool/data
-		SNAP-SHOT	backup snapshot name, e.g. @recent, @20250101,...
+	SNAP-SHOT   backup snapshot name, e.g. @recent, @20250101,...
         NEW-POOL    zpool backup being newly create, default is zclone
  Options:
         -h/--help   print this message
-
+		-a/--append	only append new FreeBSD partitions,
+					does NOT create new partition table
  Exit codes:
 		0 - setup succeeded
 		$ERR_DEVC - no device given,
 		$ERR_BACK - no backup dataset given
+		$ERR_NOSN - no snapshot given
 		$ERR_PART - partitioning failed
 		$ERR_POOL - pool creation failed
 		$ERR_SNAP - backup clone failed
 		$ERR_CUSR - correct /usr failed
 		$ERR_MOUT - mount adjustments failed
 		$ERR_PEFI - prepping EFI system partition failed
-		$ERR_NOSN - no snapshot given
 		
 EOH
 }
 main(){
+	app_part=1
     case $1 in
     '-h'|'--help') helptxt && return 0
     ;;
+	'-a,--append') app_part=0
+	;;
     esac
+	shift
     dvc=$1
     backup=$2
 	snap_shot=$3
@@ -120,12 +140,17 @@ main(){
     [ -z "$dvc" ] && echo no root block device given - aborting && return $ERR_DEVC
     [ -z "$backup" ] && echo no backup pool given - aborting && return $ERR_BACK
     [ -z "$snap_shot" ] && echo no backup snapshot given - aborting && return $ERR_NOSN
-    createPartTable || return $ERR_PART
+    
+	if [ "$app_part" = "1" ]; then
+		createPartTable || return $ERR_PART
+	fi
+	addPartFBSD || return $ERR_PART
     createPool || return $ERR_POOL
     copyBackup || return $ERR_SNAP
     correctUSR || return $ERR_CUSR
     adjustMounts || return $ERR_MOUT
     prepareEFI || return $ERR_PEFI
+	umountClone
 }
 
 main $@
