@@ -11,6 +11,7 @@ backup=
 pool_name=
 back_pool=
 snap_name=
+app_part=1
 
 ERR_DEVC=1
 ERR_BACK=2
@@ -22,34 +23,50 @@ ERR_CUSR=7
 ERR_MOUT=8
 ERR_PEFI=9
 
+computeZFS(){
+    gpart show $1 | grep '\- free \-' | tail -1 | awk "{print \$$2}"	
+}
 computeZFSSize(){
-    gpart show $1 | grep '\- free \-' | tail -1 | awk '{print $2}'
+	computeZFS $1 2
+}
+
+lastPartId(){
+	gpart show $1 | grep -v "\($1\|\- free \-\)" | grep "\S\{1,\}" | tail -1 | awk '{print $3}'
 }
 
 createPartTable(){
-    gpart create -s GPT $dvc	
+    gpart create -s GPT $dvc
+	gpart add -t efi -l efiboot0 -b 40 -s 260M $dvc
 }
-
+partStart(){
+    computeZFS $1 1
+}
 addPartFBSD(){
-    gpart add -t efi -l efiboot0 -b 40 -s 260M $dvc
-    gpart add -t freebsd-boot -l gptboot0 -b 532520 -s 1024 $dvc
-    gpart add -t freebsd-swap -l swap0 -b 534528 -s 2G $dvc
-    gpart add -t freebsd-zfs -l zfs0 -b 4728832 -s $(($(computeZFSSize $dvc )-2008)) $dvc
+	p_id=2
+	p_start=0
+	if [ "$app_part" = "0" ]; then
+		p_id=$((1+$(lastPartId $dvc )))
+		p_id=$(partStart $dvc )
+	fi
+    gpart add -t freebsd-boot -l gptboot0 -b $((532520+$p_start)) -s 1024 $dvc
+    gpart add -t freebsd-swap -l swap0 -b $((534528+$p_start)) -s 2G $dvc
+    gpart add -t freebsd-zfs -l zfs0 -b $((4728832+$p_start)) -s $(($(computeZFSSize $dvc )-2008)) $dvc
+    gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
 
-    gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i 2 $dvc
-
-    newfs_msdos -F 32 -c 1 /dev/${dvc}p1
 }
 listZFSFSs(){
-	for i in $(zfs list -rt snapshot $1 | awk '{print $1}' | grep -v "$2" ); do
+	fs_type=$3
+	[ -n "$fs_type" ] && fs_type="-t $fs_type"
+	for i in $(zfs list -r $fs_type $1 | awk '{print $1}' | grep -v "$2" ); do
 		echo $i
 	done
 }
 createPool(){
-    zpool create $pool_name /dev/${dvc}p4
+	[ "$app_part" = "1" ] && p_id=4 || p_id=$((3+$(lastPartId )))
+    zpool create $pool_name /dev/${dvc}p$p_id
 }
 copyBackup(){
-    for i in $(listZFSFSs $back_pool NAME | grep $snap_name ); do
+    for i in $(listZFSFSs $back_pool NAME snapshot | grep $snap_name ); do
 	    trg=$(echo $i | sed "s/$backup//g" | sed 's/@.\{1,\}//g' )
 	    zfs send $i | zfs receive $pool_name/root$trg
     done
@@ -74,9 +91,11 @@ adjustMounts(){
 }
 
 prepareEFI(){
+    [ "app_part" = "1" ] && newfs_msdos -F 32 -c 1 /dev/${dvc}p1
     mount -t msdosfs /dev/${dvc}p1 /mnt
-    mkdir -p /mnt/efi/boot
-    mkdir /mnt/efi/freebsd
+	dr=/mnt/efi
+    [ ! -d $dr/boot ] && mkdir -p /mnt/efi/boot
+    [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
     echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
@@ -93,9 +112,14 @@ helptxt(){
     cat << EOH
  $0 [Option] DEVICE BACKUP-POOL SNAP-SHOT [NEW-POOL]
  
- sets up a new GPT type disk with zfs as fourth partition, copies all snapshots from
- BACKUP-POOL to NEW-POOL, corrects /usr or /var if needed, includes EFI loaders and
- loader env file in EFI system partition
+ 	1) sets up a new GPT type disk with zfs as fourth partition, or
+
+	2) appends FreeBSD partitions behind last non-free space, note that
+	  disk size may cause failure (e.g. not enough space)
+
+	Then it copies all snapshots from
+	BACKUP-POOL to NEW-POOL, corrects /usr or /var if needed, includes EFI loaders and
+        loader env file in EFI system partition
  
  Attention: this script will permanently change the disk/block device, take care to
 			NOT override needed data
@@ -107,8 +131,8 @@ helptxt(){
         NEW-POOL    zpool backup being newly create, default is zclone
  Options:
         -h/--help   print this message
-		-a/--append	only append new FreeBSD partitions,
-					does NOT create new partition table
+	-a/--append only append new FreeBSD partitions,
+		    does NOT create new partition table
  Exit codes:
 		0 - setup succeeded
 		$ERR_DEVC - no device given,
@@ -124,7 +148,6 @@ helptxt(){
 EOH
 }
 main(){
-	app_part=1
     case $1 in
     '-h'|'--help') helptxt && return 0
     ;;
