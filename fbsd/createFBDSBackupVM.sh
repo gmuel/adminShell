@@ -13,6 +13,7 @@ back_pool=
 snap_name=
 app_part=1
 swap_sz=
+labl_id=0
 
 ERR_DEVC=1
 ERR_BACK=2
@@ -38,8 +39,8 @@ lastPartId(){
 }
 
 createPartTable(){
-    echo gpart create -s GPT $dvc
-	echo gpart add -t efi -l efiboot0 -b 40 -s 260M $dvc
+    gpart create -s GPT $dvc
+	gpart add -t efi -l efiboot0 -b 40 -s 260M $dvc
 }
 partStart(){
     computeZFS $1 1
@@ -54,12 +55,12 @@ createPartIFNEXT(){
 addPartFBSD(){
 	p_id=2
 	if [ "$app_part" = "0" ]; then
-		p_id=$(findPartByLabel $dvc gptboot0 )
+		p_id=$(findPartByLabel $dvc gptboot$labl_id )
 		[ -z "$p_id" ] && p_id=$((1+$(lastPartId $dvc )))
 	fi
-	createPartIFNEXT $dvc 1024 gptboot0 freebsd-boot
-    createPartIFNEXT $dvc $swap_sz swap0 freebsd-swap 984
-    createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) zfs0 freebsd-zfs
+	createPartIFNEXT $dvc 1024 gptboot$labl_id freebsd-boot
+    createPartIFNEXT $dvc $swap_sz swap$labl_id freebsd-swap 984
+    createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) zfs$labl_id freebsd-zfs
     gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
 
 }
@@ -74,15 +75,15 @@ createPool(){
 	if [ "$app_part" = "1" ]; then
 		p_id=4
 	else
-		p_id=$(findPartByLabel $dvc zfs0 )
+		p_id=$(findPartByLabel $dvc zfs$labl_id )
 #		[ -z "$p_id" ] && p_id=$((3+$(lastPartId $dvc )))
 	fi
     zpool create $pool_name /dev/${dvc}p$p_id
 }
 copyBackup(){
-	bu=$(echo $backup | sed 's=/=\\/=g' )
+#	bu=$(echo $backup | sed 's=/=\\/=g' )
     for i in $(listZFSFSs $back_pool NAME snapshot | grep $snap_name ); do
-	    trg=$(echo $i | sed "s/$bu//g" | sed 's/@.\{1,\}//g' )
+	    trg=$(echo $i | sed "s=$backup==g" | sed 's/@.\{1,\}//g' )
 	    zfs send $i | zfs receive $pool_name/root$trg
     done
 }
@@ -92,6 +93,12 @@ correctUSR(){
         && rm -vrf /$pool_name/root/ROOT/default/usr/*
     [ ! -d $pool_name/root/var/tmp ] && cp -vrp /$pool_name/root/ROOT/default/var/* /$pool_name/root/var \
         && rm -vrf /$pool_name/root/ROOT/default/var/*
+	if ! ls -l /$pool_name/root/ROOT/default/var/ | grep tmp | grep rwt; then
+		chmod 1777 /$pool_name/root/ROOT/default/var/tmp
+	fi
+	if ! ls -l /$pool_name/root/ROOT/default/ | grep tmp | grep rwt; then
+		chmod 1777 /$pool_name/root/ROOT/default/tmp
+	fi
 }
 
 adjustMounts(){
@@ -113,7 +120,7 @@ prepareEFI(){
 		# correct efi entry
 		sed -i'' -e "s=$(grep efi $fs_tab | awk '{print $1}' )=/dev/${dvc}p1=g" $fs_tab
 		# correct swap entry
-		sed -i'' -e "s=$(grep swap $fs_tab | awk '{print $1}' )=/dev/${dvc}p$(findPartByLabel $dvc swap0 )=g" $fs_tab
+		sed -i'' -e "s=$(grep swap $fs_tab | awk '{print $1}' )=/dev/${dvc}p$(findPartByLabel $dvc swap$labl_id )=g" $fs_tab
 		
 	fi
     mount -t msdosfs /dev/${dvc}p1 /mnt
