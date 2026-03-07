@@ -50,7 +50,7 @@ matchDEAndInstall(){
 		echo Desktop env $1 not supported here - use different method
 		return $ERR_UNSUPPORTED_DESKENV
 	fi
-	if [ "$de_e" = "xfce"] || [ "$de_e" = "cinnamon" ]; then
+	if [ "$de_e" = "xfce" ] || [ "$de_e" = "cinnamon" ]; then
 		for i in $(forEachSpace "$1 $LDM" ); do
 			installIfNotFound $i
 		done
