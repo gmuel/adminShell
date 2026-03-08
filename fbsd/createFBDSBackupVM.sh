@@ -14,6 +14,9 @@ snap_name=
 app_part=1
 swap_sz=
 labl_id=0
+ecrypt=1
+root_labl=
+root_part=
 
 ERR_DEVC=1
 ERR_BACK=2
@@ -59,10 +62,10 @@ addPartFBSD(){
 		[ -z "$p_id" ] && p_id=$((1+$(lastPartId $dvc )))
 	fi
 	createPartIFNEXT $dvc 1024 gptboot$labl_id freebsd-boot
+#    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
     createPartIFNEXT $dvc $swap_sz swap$labl_id freebsd-swap 984
-    createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) zfs$labl_id freebsd-zfs
+    createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) $root_labl freebsd-zfs
     gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
-
 }
 listZFSFSs(){
 	fs_type=$3
@@ -72,13 +75,15 @@ listZFSFSs(){
 	done
 }
 createPool(){
-	if [ "$app_part" = "1" ]; then
+	if [ "$app_part" = "1" ] && [ $ecrypt = 1 ]; then
 		p_id=4
 	else
-		p_id=$(findPartByLabel $dvc zfs$labl_id )
+		p_id=$(findPartByLabel $dvc $root_labl )
 #		[ -z "$p_id" ] && p_id=$((3+$(lastPartId $dvc )))
 	fi
-    zpool create $pool_name /dev/${dvc}p$p_id
+	zfs_dvc=/dev/$root_part
+	[ $ecrypt = 0 ] &&  zfs_dvc=${zfs_dvc}.eli
+    zpool create $pool_name $zfs_dvc
 }
 copyBackup(){
 #	bu=$(echo $backup | sed 's=/=\\/=g' )
@@ -93,8 +98,8 @@ correctUSR(){
         && rm -vrf /$pool_name/root/ROOT/default/usr/*
     [ ! -d $pool_name/root/var/tmp ] && cp -vrp /$pool_name/root/ROOT/default/var/* /$pool_name/root/var \
         && rm -vrf /$pool_name/root/ROOT/default/var/*
-	if ! ls -l /$pool_name/root/ROOT/default/var/ | grep tmp | grep rwt; then
-		chmod 1777 /$pool_name/root/ROOT/default/var/tmp
+	if ! ls -l /$pool_name/root/var/ | grep tmp | grep rwt; then
+		chmod 1777 /$pool_name/root/var/tmp
 	fi
 	if ! ls -l /$pool_name/root/ROOT/default/ | grep tmp | grep rwt; then
 		chmod 1777 /$pool_name/root/ROOT/default/tmp
@@ -105,6 +110,8 @@ adjustMounts(){
     for i in $(listZFSFSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
         if [ "$i" = "$pool_name/root/ROOT/default" ]; then
             zfs set -u mountpoint=/ $i
+        elif [ "$i" = "$pool_name/root" ] || [ "$i" = "$pool_name/root/ROOT" ]; then
+            zfs set -u mountpoint=none $i
         else
             zfs set -u mountpoint=$(echo $i | sed "s=$pool_name/root==g" ) $i
         fi
@@ -113,7 +120,7 @@ adjustMounts(){
 }
 
 prepareEFI(){
-    if [ "app_part" = "1" ]; then
+    if [ $app_part = 1 ]; then
 		newfs_msdos -F 32 -c 1 /dev/${dvc}p1
 	else
 		fs_tab=/$pool_name/root/ROOT/default/etc/fstab
@@ -129,7 +136,24 @@ prepareEFI(){
     [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
+    
     echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
+#    if [ $ecrypt = 1 ]; then
+#    else
+#        p_id=$(findPartByLabel $dvc eliboot$labl_id )
+#        echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
+#        eli_bt=/dev/${dvc}p$p_id
+#        umount /mnt
+#        newfs -t -U -L eliboot $eli_bt
+#        mount -t ufs $eli_bt /mnt
+#        mv -v /$pool_name/root/ROOT/default/boot/* /mnt
+#        #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
+#        if grep '/boot ' $fs_tab; then
+#            sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
+#        else
+#            echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
+#        fi
+#    fi
 }
 
 umountClone(){
@@ -179,14 +203,44 @@ helptxt(){
 		
 EOH
 }
+prepareEcrypt(){
+    echo kldload geom_eli
+    ky_fl=/root/.keys/${root_part}.key
+    encrypt.sh $root_part $ky_fl && \
+    geli attach -k $ky_fl /dev/$root_part
+
+}
+finalizeEcrypt(){
+    new_root=/$pool_name/root/ROOT/default/
+    mv /root/.keys/ ${new_root}boot
+    cat << EOI >> ${new_root}boot/loader.conf
+geom_eli_load="YES"
+vfs.root.mountfrom="zfs:$pool_name"
+EOI
+    cat << EOI >> ${new_root}etc/rc.conf
+geli_device="$root_part"
+geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
+EOI
+    
+}
 main(){
+    root_labl=zfs$labl_id
+    
     case $1 in
     '-h'|'--help') helptxt && return 0
     ;;
-	'-a'|'--append') app_part=0
+	'-a'|'--append') app_part=0; shift
+	;;
+	'-e'|'--encrypt') 
+	    ecrypt=0
+	    root_labl=geli$labl_id
+	    shift
 	;;
     esac
-	shift
+	if echo $1 | grep -q "\-\([a-zA-z]\|\-[a-zA-z]\+\)"; then
+	    main $@
+	    return $?
+	fi
     dvc=$1
     backup=$2
 	snap_name=$3
@@ -201,12 +255,20 @@ main(){
 		createPartTable || return $ERR_PART
 	fi
 	addPartFBSD || return $ERR_PART
+	root_part=${dvc}p$(findPartByLabel $dvc $root_labl )
+	if [ $ecrypt = 0 ]; then
+	    prepareEcrypt 
+	fi
     createPool || return $ERR_POOL
     copyBackup || return $ERR_SNAP
     correctUSR || return $ERR_CUSR
     adjustMounts || return $ERR_MOUT
     prepareEFI || return $ERR_PEFI
-	umountClone
+    if [ $ecrypt = 0 ]; then
+	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
+	    finalizeEcrypt
+	fi
+	umountClone && geli detach ${root_part}.eli
 }
 
 main $@
