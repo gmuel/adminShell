@@ -268,7 +268,7 @@ main(){
 	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
 	    finalizeEcrypt
 	fi
-	umountClone && geli detach ${root_part}.eli
+	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
 }
 
 main $@
