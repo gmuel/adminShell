@@ -62,7 +62,7 @@ addPartFBSD(){
 		[ -z "$p_id" ] && p_id=$((1+$(lastPartId $dvc )))
 	fi
 	createPartIFNEXT $dvc 1024 gptboot$labl_id freebsd-boot
-#    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
+    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
     createPartIFNEXT $dvc $swap_sz swap$labl_id freebsd-swap 984
     createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) $root_labl freebsd-zfs
     gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
@@ -136,24 +136,9 @@ prepareEFI(){
     [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
-    
-    echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
-#    if [ $ecrypt = 1 ]; then
-#    else
-#        p_id=$(findPartByLabel $dvc eliboot$labl_id )
-#        echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
-#        eli_bt=/dev/${dvc}p$p_id
-#        umount /mnt
-#        newfs -t -U -L eliboot $eli_bt
-#        mount -t ufs $eli_bt /mnt
-#        mv -v /$pool_name/root/ROOT/default/boot/* /mnt
-#        #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
-#        if grep '/boot ' $fs_tab; then
-#            sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
-#        else
-#            echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
-#        fi
-#    fi
+    if [ $ecrypt = 1 ]; then
+        echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
+    fi
 }
 
 umountClone(){
@@ -203,13 +188,15 @@ helptxt(){
 		
 EOH
 }
+
 prepareEcrypt(){
     echo kldload geom_eli
     ky_fl=/root/.keys/${root_part}.key
     encrypt.sh $root_part $ky_fl && \
-    geli attach -k $ky_fl /dev/$root_part
-
+#    geli attach -k $ky_fl /dev/$root_part
+    geli attach /dev/$root_part
 }
+
 finalizeEcrypt(){
     new_root=/$pool_name/root/ROOT/default/
     mv /root/.keys/ ${new_root}boot
@@ -221,8 +208,21 @@ EOI
 geli_device="$root_part"
 geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
 EOI
-    
+    p_id=$(findPartByLabel $dvc eliboot$labl_id )
+    echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
+    eli_bt=/dev/${dvc}p$p_id
+    umount /mnt
+    newfs -t -U -L eliboot $eli_bt
+    mount -t ufs $eli_bt /mnt
+    mv -v /$pool_name/root/ROOT/default/boot/* /mnt
+    #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
+    if grep '/boot ' $fs_tab; then
+        sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
+    else
+        echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
+    fi
 }
+
 main(){
     root_labl=zfs$labl_id
     
@@ -237,7 +237,7 @@ main(){
 	    shift
 	;;
     esac
-	if echo $1 | grep -q "\-\([a-zA-z]\|\-[a-zA-z]\+\)"; then
+	if echo $1 | grep -q "\-\([a-zA-z]\|\-[a-zA-z]\{1,\}\)"; then
 	    main $@
 	    return $?
 	fi
