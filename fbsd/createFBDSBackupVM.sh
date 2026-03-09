@@ -62,7 +62,7 @@ addPartFBSD(){
 		[ -z "$p_id" ] && p_id=$((1+$(lastPartId $dvc )))
 	fi
 	createPartIFNEXT $dvc 1024 gptboot$labl_id freebsd-boot
-    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
+#    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
     createPartIFNEXT $dvc $swap_sz swap$labl_id freebsd-swap 984
     createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) $root_labl freebsd-zfs
     gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
@@ -208,19 +208,19 @@ EOI
 geli_device="$root_part"
 geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
 EOI
-    p_id=$(findPartByLabel $dvc eliboot$labl_id )
-    echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
-    eli_bt=/dev/${dvc}p$p_id
-    umount /mnt
-    newfs -t -U -L eliboot $eli_bt
-    mount -t ufs $eli_bt /mnt
-    mv -v /$pool_name/root/ROOT/default/boot/* /mnt
-    #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
-    if grep '/boot ' $fs_tab; then
-        sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
-    else
-        echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
-    fi
+#    p_id=$(findPartByLabel $dvc eliboot$labl_id )
+#    echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
+#    eli_bt=/dev/${dvc}p$p_id
+#    umount /mnt
+#    newfs -t -U -L eliboot $eli_bt
+#    mount -t ufs $eli_bt /mnt
+#    mv -v /$pool_name/root/ROOT/default/boot/* /mnt
+#    #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
+#    if grep '/boot ' $fs_tab; then
+#        sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
+#    else
+#        echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
+#    fi
 }
 
 main(){
@@ -260,15 +260,15 @@ main(){
 	    prepareEcrypt 
 	fi
     createPool || return $ERR_POOL
-    copyBackup || return $ERR_SNAP
-    correctUSR || return $ERR_CUSR
-    adjustMounts || return $ERR_MOUT
-    prepareEFI || return $ERR_PEFI
-    if [ $ecrypt = 0 ]; then
-	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
-	    finalizeEcrypt
-	fi
-	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
+#    copyBackup || return $ERR_SNAP
+#    correctUSR || return $ERR_CUSR
+#    adjustMounts || return $ERR_MOUT
+#    prepareEFI || return $ERR_PEFI
+#    if [ $ecrypt = 0 ]; then
+#	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
+#	    finalizeEcrypt
+#	fi
+#	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
 }
 
 main $@
