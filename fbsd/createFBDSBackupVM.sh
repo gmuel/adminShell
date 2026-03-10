@@ -140,15 +140,15 @@ copyBackup(){
 }
 
 correctUSR(){
-    [ ! -d $pool_name/root/usr/bin ] && cp -vrp $root_ds/usr/* /$pool_name/root/usr \
-        && rm -vrf $root_ds/usr/*
-    [ ! -d $pool_name/root/var/tmp ] && cp -vrp $root_ds/var/* /$pool_name/root/var \
-        && rm -vrf $root_ds/var/*
+    [ ! -d /$pool_name/root/usr/bin ] && cp -vrp /$root_ds/usr/* /$pool_name/root/usr \
+        && rm -vrf /$root_ds/usr/*
+    [ ! -d /$pool_name/root/var/lib ] && cp -vrp /$root_ds/var/* /$pool_name/root/var \
+        && rm -vrf /$root_ds/var/*
 	if ! ls -l /$pool_name/root/var/ | grep tmp | grep rwt; then
 		chmod 1777 /$pool_name/root/var/tmp
 	fi
-	if ! ls -l $root_ds | grep tmp | grep rwt; then
-		chmod 1777 $root_ds/tmp
+	if ! ls -l /$root_ds | grep tmp | grep rwt; then
+		chmod 1777 /$root_ds/tmp
 	fi
 }
 
@@ -166,7 +166,7 @@ adjustMounts(){
 }
 
 prepareEFI(){
-    fs_tab=$root_ds/etc/fstab
+    fs_tab=/$root_ds/etc/fstab
     if [ $app_part = 1 ]; then
 		newfs_msdos -F 32 -c 1 /dev/${dvc}p1
 	else
@@ -203,12 +203,12 @@ prepareEcrypt(){
 
 finalizeEcrypt(){
     new_root=/$root_ds
-    mv /root/.keys/ ${new_root}boot
-    cat << EOI >> ${new_root}boot/loader.conf
+    mv /root/.keys/ ${new_root}/boot
+    cat << EOI >> ${new_root}/boot/loader.conf
 geom_eli_load="YES"
 vfs.root.mountfrom="zfs:$root_ds"
 EOI
-    cat << EOI >> ${new_root}etc/rc.conf
+    cat << EOI >> ${new_root}/etc/rc.conf
 geli_device="$root_part"
 geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
 EOI
