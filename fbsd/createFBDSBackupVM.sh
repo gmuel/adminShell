@@ -28,6 +28,49 @@ ERR_CUSR=7
 ERR_MOUT=8
 ERR_PEFI=9
 
+
+
+helptxt(){
+    cat << EOH
+ $0 [Option] DEVICE BACKUP-DS SNAP-SHOT [NEW-POOL] [SWAP-SIZE]
+ 
+ 	1) sets up a new GPT type disk with zfs as fourth partition, or
+
+	2) appends FreeBSD partitions behind last non-free space, note that
+	  disk size may cause failure (e.g. not enough space)
+
+	Then it copies all snapshots from
+	BACKUP-DS to NEW-POOL, corrects /usr or /var if needed, includes EFI loaders and
+        loader env file in EFI system partition
+ 
+ Attention: this script will permanently change the disk/block device, take care to
+			NOT override needed data
+ 
+ Parameters:
+        DEVICE      block device to recreate from backup, e.g. nda0, ada1,...
+        BACKUP-DS zfs backup dataset to recover, e.g. backup_pool/data
+	SNAP-SHOT   backup snapshot name, e.g. @recent, @20250101,...
+        NEW-POOL    zpool backup being newly create, default is zclone
+        SWAP-SIZE   swap size string, e.g. 512M, 4G, ..., defaults to 2G
+ Options:
+        -h/--help   print this message
+	-a/--append only append new FreeBSD partitions,
+		    does NOT create new partition table
+ Exit codes:
+		0 - setup succeeded
+		$ERR_DEVC - no device given,
+		$ERR_BACK - no backup dataset given
+		$ERR_NOSN - no snapshot given
+		$ERR_PART - partitioning failed
+		$ERR_POOL - pool creation failed
+		$ERR_SNAP - backup clone failed
+		$ERR_CUSR - correct /usr failed
+		$ERR_MOUT - mount adjustments failed
+		$ERR_PEFI - prepping EFI system partition or adjusting fstab failed
+		
+EOH
+}
+
 computeZFS(){
     gpart show $1 | grep '\- free \-' | tail -1 | awk "{print \$$2}"	
 }
@@ -62,12 +105,11 @@ addPartFBSD(){
 		[ -z "$p_id" ] && p_id=$((1+$(lastPartId $dvc )))
 	fi
 	createPartIFNEXT $dvc 1024 gptboot$labl_id freebsd-boot
-#    [ $ecrypt = 0 ] && createPartIFNEXT $dvc 512M eliboot$labl_id freebsd-ufs
     createPartIFNEXT $dvc $swap_sz swap$labl_id freebsd-swap 984
     createPartIFNEXT $dvc $(($(computeZFSSize $dvc )-2008)) $root_labl freebsd-zfs
     gpart bootcode -b /boot/pmbr -p /boot/gptzfsboot -i $p_id $dvc
 }
-listZFSFSs(){
+listZFSDSs(){
 	fs_type=$3
 	[ -n "$fs_type" ] && fs_type="-t $fs_type"
 	for i in $(zfs list -r $fs_type $1 | awk '{print $1}' | grep -v "$2" ); do
@@ -79,15 +121,13 @@ createPool(){
 		p_id=4
 	else
 		p_id=$(findPartByLabel $dvc $root_labl )
-#		[ -z "$p_id" ] && p_id=$((3+$(lastPartId $dvc )))
 	fi
 	zfs_dvc=/dev/$root_part
 	[ $ecrypt = 0 ] &&  zfs_dvc=${zfs_dvc}.eli
     zpool create $pool_name $zfs_dvc
 }
 copyBackup(){
-#	bu=$(echo $backup | sed 's=/=\\/=g' )
-    for i in $(listZFSFSs $back_pool NAME snapshot | grep $snap_name ); do
+    for i in $(listZFSDSs $back_pool NAME snapshot | grep $snap_name ); do
 	    trg=$(echo $i | sed "s=$backup==g" | sed 's/@.\{1,\}//g' )
 	    zfs send $i | zfs receive $pool_name/root$trg
     done
@@ -107,7 +147,7 @@ correctUSR(){
 }
 
 adjustMounts(){
-    for i in $(listZFSFSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
+    for i in $(listZFSDSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
         if [ "$i" = "$pool_name/root/ROOT/default" ]; then
             zfs set -u mountpoint=/ $i
         elif [ "$i" = "$pool_name/root" ] || [ "$i" = "$pool_name/root/ROOT" ]; then
@@ -136,9 +176,7 @@ prepareEFI(){
     [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
-#    if [ $ecrypt = 1 ]; then
-        echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
-#    fi
+    echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
 }
 
 umountClone(){
@@ -148,53 +186,11 @@ umountClone(){
 	zpool export $pool_name
 }
 
-helptxt(){
-    cat << EOH
- $0 [Option] DEVICE BACKUP-POOL SNAP-SHOT [NEW-POOL] [SWAP-SIZE]
- 
- 	1) sets up a new GPT type disk with zfs as fourth partition, or
-
-	2) appends FreeBSD partitions behind last non-free space, note that
-	  disk size may cause failure (e.g. not enough space)
-
-	Then it copies all snapshots from
-	BACKUP-POOL to NEW-POOL, corrects /usr or /var if needed, includes EFI loaders and
-        loader env file in EFI system partition
- 
- Attention: this script will permanently change the disk/block device, take care to
-			NOT override needed data
- 
- Parameters:
-        DEVICE      block device to recreate from backup, e.g. nda0, ada1,...
-        BACKUP-POOL zfs backup dataset to recover, e.g. backup_pool/data
-	SNAP-SHOT   backup snapshot name, e.g. @recent, @20250101,...
-        NEW-POOL    zpool backup being newly create, default is zclone
-        SWAP-SIZE   swap size string, e.g. 512M, 4G, ..., defaults to 2G
- Options:
-        -h/--help   print this message
-	-a/--append only append new FreeBSD partitions,
-		    does NOT create new partition table
- Exit codes:
-		0 - setup succeeded
-		$ERR_DEVC - no device given,
-		$ERR_BACK - no backup dataset given
-		$ERR_NOSN - no snapshot given
-		$ERR_PART - partitioning failed
-		$ERR_POOL - pool creation failed
-		$ERR_SNAP - backup clone failed
-		$ERR_CUSR - correct /usr failed
-		$ERR_MOUT - mount adjustments failed
-		$ERR_PEFI - prepping EFI system partition or adjusting fstab failed
-		
-EOH
-}
-
 prepareEcrypt(){
     echo kldload geom_eli
     ky_fl=/root/.keys/${root_part}.key
     encrypt.sh $root_part $ky_fl && \
     geli attach /dev/$root_part
-#    geli attach -k $ky_fl /dev/$root_part
 }
 
 finalizeEcrypt(){
@@ -202,25 +198,12 @@ finalizeEcrypt(){
     mv /root/.keys/ ${new_root}boot
     cat << EOI >> ${new_root}boot/loader.conf
 geom_eli_load="YES"
-vfs.root.mountfrom="zfs:$pool_name"
+vfs.root.mountfrom="zfs:$new_root"
 EOI
     cat << EOI >> ${new_root}etc/rc.conf
 geli_device="$root_part"
 geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
 EOI
-#    p_id=$(findPartByLabel $dvc eliboot$labl_id )
-#    echo "rootdev=ufs:disk1s$p_id" >> /mnt/efi/freebsd/loader.env
-#    eli_bt=/dev/${dvc}p$p_id
-#    umount /mnt
-#    newfs -t -U -L eliboot $eli_bt
-#    mount -t ufs $eli_bt /mnt
-#    mv -v /$pool_name/root/ROOT/default/boot/* /mnt
-#    #str=$(sed "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab )
-#    if grep '/boot ' $fs_tab; then
-#        sed -i'' -e "s=$(grep '/boot ' $fs_tab | awk '{print $1}' )=$eli_bt=g" $fs_tab
-#    else
-#        echo $eli_bt /boot ufs rw 1 1 >> $fs_tab
-#    fi
 }
 
 main(){    
@@ -264,7 +247,6 @@ main(){
     adjustMounts || return $ERR_MOUT
     prepareEFI || return $ERR_PEFI
     if [ $ecrypt = 0 ]; then
-	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
 	    finalizeEcrypt
 	fi
 	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
