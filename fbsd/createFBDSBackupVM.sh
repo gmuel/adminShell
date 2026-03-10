@@ -136,9 +136,9 @@ prepareEFI(){
     [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
-    if [ $ecrypt = 1 ]; then
+#    if [ $ecrypt = 1 ]; then
         echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
-    fi
+#    fi
 }
 
 umountClone(){
@@ -193,8 +193,8 @@ prepareEcrypt(){
     echo kldload geom_eli
     ky_fl=/root/.keys/${root_part}.key
     encrypt.sh $root_part $ky_fl && \
-#    geli attach -k $ky_fl /dev/$root_part
     geli attach /dev/$root_part
+#    geli attach -k $ky_fl /dev/$root_part
 }
 
 finalizeEcrypt(){
@@ -223,9 +223,7 @@ EOI
 #    fi
 }
 
-main(){
-    root_labl=zfs$labl_id
-    
+main(){    
     case $1 in
     '-h'|'--help') helptxt && return 0
     ;;
@@ -247,6 +245,7 @@ main(){
 	back_pool=$(echo $backup | cut -d/ -f1 )
     pool_name=${4:-zclone}
 	swap_sz=${5:-2G}
+	root_labl=${root_labl:-zfs$labl_id}
     [ -z "$dvc" ] && echo no root block device given - aborting && return $ERR_DEVC
     [ -z "$backup" ] && echo no backup pool given - aborting && return $ERR_BACK
     [ -z "$snap_name" ] && echo no backup snapshot given - aborting && return $ERR_NOSN
@@ -260,15 +259,15 @@ main(){
 	    prepareEcrypt 
 	fi
     createPool || return $ERR_POOL
-#    copyBackup || return $ERR_SNAP
-#    correctUSR || return $ERR_CUSR
-#    adjustMounts || return $ERR_MOUT
-#    prepareEFI || return $ERR_PEFI
-#    if [ $ecrypt = 0 ]; then
-#	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
-#	    finalizeEcrypt
-#	fi
-#	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
+    copyBackup || return $ERR_SNAP
+    correctUSR || return $ERR_CUSR
+    adjustMounts || return $ERR_MOUT
+    prepareEFI || return $ERR_PEFI
+    if [ $ecrypt = 0 ]; then
+	    # mv /root/.keys/ /$pool_name/root/ROOT/default/root
+	    finalizeEcrypt
+	fi
+	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
 }
 
 main $@
