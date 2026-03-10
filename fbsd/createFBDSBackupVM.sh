@@ -18,6 +18,7 @@ ecrypt=1
 root_labl=
 root_part=
 root_ds=
+swap_pt=
 
 ERR_DEVC=1
 ERR_BACK=2
@@ -35,10 +36,13 @@ helptxt(){
     cat << EOH
  $0 [Option] DEVICE BACKUP-DS SNAP-SHOT [NEW-POOL] [SWAP-SIZE]
  
- 	1) sets up a new GPT type disk with zfs as fourth partition, or
+ 	1) single boot - sets up a new GPT type disk with zfs as fourth partition, or
 
-	2) appends FreeBSD partitions behind last non-free space, note that
-	  disk size may cause failure (e.g. not enough space)
+	2) dual boot - appends FreeBSD partitions behind last non-free space, note that
+	  disk size may cause failure (e.g. not enough space),
+	  NOTE: this mode requires a multi boot loader(!)
+	  
+	3) encrypts both root file system and swap in either case (single or dual boot)
 
 	Then it copies all snapshots from
 	BACKUP-DS to NEW-POOL, corrects /usr or /var if needed, includes EFI loaders and
@@ -49,14 +53,15 @@ helptxt(){
  
  Parameters:
         DEVICE      block device to recreate from backup, e.g. nda0, ada1,...
-        BACKUP-DS zfs backup dataset to recover, e.g. backup_pool/data
+        BACKUP-DS   zfs backup dataset to recover, e.g. backup_pool/data
 	SNAP-SHOT   backup snapshot name, e.g. @recent, @20250101,...
-        NEW-POOL    zpool backup being newly create, default is zclone
+        NEW-POOL    zpool being newly create, default is zclone
         SWAP-SIZE   swap size string, e.g. 512M, 4G, ..., defaults to 2G
  Options:
-        -h/--help   print this message
-	-a/--append only append new FreeBSD partitions,
-		    does NOT create new partition table
+        -h/--help    print this message
+	-a/--append  only append new FreeBSD partitions,
+		     does NOT create new partition table
+        -e/--encrypt encrypt zpool partition with geli util
  Exit codes:
 		0 - setup succeeded
 		$ERR_DEVC - no device given,
@@ -135,15 +140,15 @@ copyBackup(){
 }
 
 correctUSR(){
-    [ ! -d $pool_name/root/usr/bin ] && cp -vrp /$pool_name/root/ROOT/default/usr/* /$pool_name/root/usr \
-        && rm -vrf /$pool_name/root/ROOT/default/usr/*
-    [ ! -d $pool_name/root/var/tmp ] && cp -vrp /$pool_name/root/ROOT/default/var/* /$pool_name/root/var \
-        && rm -vrf /$pool_name/root/ROOT/default/var/*
+    [ ! -d $pool_name/root/usr/bin ] && cp -vrp $root_ds/usr/* /$pool_name/root/usr \
+        && rm -vrf $root_ds/usr/*
+    [ ! -d $pool_name/root/var/tmp ] && cp -vrp $root_ds/var/* /$pool_name/root/var \
+        && rm -vrf $root_ds/var/*
 	if ! ls -l /$pool_name/root/var/ | grep tmp | grep rwt; then
 		chmod 1777 /$pool_name/root/var/tmp
 	fi
-	if ! ls -l /$pool_name/root/ROOT/default/ | grep tmp | grep rwt; then
-		chmod 1777 /$pool_name/root/ROOT/default/tmp
+	if ! ls -l $root_ds | grep tmp | grep rwt; then
+		chmod 1777 $root_ds/tmp
 	fi
 }
 
@@ -161,16 +166,17 @@ adjustMounts(){
 }
 
 prepareEFI(){
+    fs_tab=$root_ds/etc/fstab
     if [ $app_part = 1 ]; then
 		newfs_msdos -F 32 -c 1 /dev/${dvc}p1
 	else
-		fs_tab=/$pool_name/root/ROOT/default/etc/fstab
 		# correct efi entry
 		sed -i'' -e "s=$(grep efi $fs_tab | awk '{print $1}' )=/dev/${dvc}p1=g" $fs_tab
 		# correct swap entry
-		sed -i'' -e "s=$(grep swap $fs_tab | awk '{print $1}' )=/dev/${dvc}p$(findPartByLabel $dvc swap$labl_id )=g" $fs_tab
+		sed -i'' -e "s=$(grep swap $fs_tab | awk '{print $1}' )=$swap_pt=g" $fs_tab
 		
 	fi
+	[ $ecrypt = 0 ] && sed -i'' -e "s=$(grep swap $fs_tab | awk '{print $1}' )=${swap_pt}.eli=g" $fs_tab
     mount -t msdosfs /dev/${dvc}p1 /mnt
 	dr=/mnt/efi
     [ ! -d $dr/boot ] && mkdir -p /mnt/efi/boot
@@ -192,6 +198,7 @@ prepareEcrypt(){
     ky_fl=/root/.keys/${root_part}.key
     encrypt.sh $root_part $ky_fl && \
     geli attach /dev/$root_part
+    geli onetime -d $swap_pt
 }
 
 finalizeEcrypt(){
@@ -205,6 +212,9 @@ EOI
 geli_device="$root_part"
 geli_${root_part}_flags="-k /boot/.keys/${root_part}.key"
 EOI
+    dr=/$pool_name/root/var/backups
+    [ ! -d $dr ] && mkdir -p $dr
+    mv /var/backups/${root_part}.eli $dr
 }
 
 main(){    
@@ -241,6 +251,7 @@ main(){
 	echo "Adding default partitions.."
 	addPartFBSD || return $ERR_PART
 	root_part=${dvc}p$(findPartByLabel $dvc $root_labl )
+	swap_pt=/dev/${dvc}p$(findPartByLabel $dvc swap$labl_id )
 	if [ $ecrypt = 0 ]; then
 	    echo "Preparing encrypted provider $root_part"
 	    prepareEcrypt 
@@ -249,7 +260,7 @@ main(){
     createPool || return $ERR_POOL
     echo "Restoring new pool $pool_name from $backup"
     copyBackup || return $ERR_SNAP
-    root_ds=$pool_name/root/ROOT/default/
+    root_ds=$pool_name/root/ROOT/default
     echo "Testing if /usr-correction required"
     correctUSR || return $ERR_CUSR
     echo "Adjusting zfs mountpoints"
