@@ -17,6 +17,7 @@ labl_id=0
 ecrypt=1
 root_labl=
 root_part=
+root_ds=
 
 ERR_DEVC=1
 ERR_BACK=2
@@ -148,7 +149,7 @@ correctUSR(){
 
 adjustMounts(){
     for i in $(listZFSDSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
-        if [ "$i" = "$pool_name/root/ROOT/default" ]; then
+        if [ "$i" = "$root_ds" ]; then
             zfs set -u mountpoint=/ $i
         elif [ "$i" = "$pool_name/root" ] || [ "$i" = "$pool_name/root/ROOT" ]; then
             zfs set -u mountpoint=none $i
@@ -176,7 +177,7 @@ prepareEFI(){
     [ ! -d $dr/freebsd ] && mkdir /mnt/efi/freebsd
     cp /boot/efi/efi/boot/bootx64.efi /mnt/efi/boot
     cp /boot/efi/efi/freebsd/loader.efi /mnt/efi/freebsd
-    echo "rootdev=zfs:$pool_name/root/ROOT/default:" >> /mnt/efi/freebsd/loader.env
+    echo "rootdev=zfs:$root_ds:" >> /mnt/efi/freebsd/loader.env
 }
 
 umountClone(){
@@ -194,11 +195,11 @@ prepareEcrypt(){
 }
 
 finalizeEcrypt(){
-    new_root=/$pool_name/root/ROOT/default/
+    new_root=/$root_ds
     mv /root/.keys/ ${new_root}boot
     cat << EOI >> ${new_root}boot/loader.conf
 geom_eli_load="YES"
-vfs.root.mountfrom="zfs:$new_root"
+vfs.root.mountfrom="zfs:$root_ds"
 EOI
     cat << EOI >> ${new_root}etc/rc.conf
 geli_device="$root_part"
@@ -234,19 +235,29 @@ main(){
     [ -z "$snap_name" ] && echo no backup snapshot given - aborting && return $ERR_NOSN
     
 	if [ "$app_part" = "1" ]; then
+	    echo "Creating new partition table on disk $dvc"
 		createPartTable || return $ERR_PART
 	fi
+	echo "Adding default partitions.."
 	addPartFBSD || return $ERR_PART
 	root_part=${dvc}p$(findPartByLabel $dvc $root_labl )
 	if [ $ecrypt = 0 ]; then
+	    echo "Preparing encrypted provider $root_part"
 	    prepareEcrypt 
 	fi
+	echo "Creating new pool $pool_name"
     createPool || return $ERR_POOL
+    echo "Restoring new pool $pool_name from $backup"
     copyBackup || return $ERR_SNAP
+    root_ds=$pool_name/root/ROOT/default/
+    echo "Testing if /usr-correction required"
     correctUSR || return $ERR_CUSR
+    echo "Adjusting zfs mountpoints"
     adjustMounts || return $ERR_MOUT
+    echo "Setting up EFI"
     prepareEFI || return $ERR_PEFI
     if [ $ecrypt = 0 ]; then
+        echo "Correcting boot parameters"
 	    finalizeEcrypt
 	fi
 	umountClone && [ $ecrypt = 0 ] && geli detach ${root_part}.eli
