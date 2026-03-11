@@ -54,7 +54,8 @@ backupKeys(){
 
 backupAllHeaders(){
     needHelp "$1" "backupAllHeaders" && return 0
-    dr=.root/crypt_headers/
+    dr=$(find /home -type d -name crypt_headers | head -1 )
+    [ -z "$dr" ] && echo no backup dir found - aborting && return 1
     qt=$(containsFlag $@ -q )
     dy=$(containsFlag $@ -n )
     for i in $(blkid -o device -t TYPE=crypto_LUKS | grep -v sr0 )
