@@ -133,19 +133,19 @@ createPool(){
     zpool create $pool_name $zfs_dvc
 }
 copyBackup(){
-    for i in $(listZFSDSs $back_pool NAME snapshot | grep $snap_name ); do
+    for i in $(listZFSDSs $back_pool NAME snapshot | grep $snap_name | grep -v $backup$snap_name ); do
 	    trg=$(echo $i | sed "s=$backup==g" | sed 's/@.\{1,\}//g' )
-	    zfs send $i | zfs receive $pool_name/root$trg
+	    zfs send $i | zfs receive $pool_name$trg
     done
 }
 
 correctUSR(){
-    [ ! -d /$pool_name/root/usr/bin ] && cp -vrp /$root_ds/usr/* /$pool_name/root/usr \
+    [ ! -d /$pool_name/usr/bin ] && cp -vrp /$root_ds/usr/* /$pool_name/usr \
         && rm -vrf /$root_ds/usr/*
-    [ ! -d /$pool_name/root/var/lib ] && cp -vrp /$root_ds/var/* /$pool_name/root/var \
+    [ ! -d /$pool_name/var/lib ] && cp -vrp /$root_ds/var/* /$pool_name/var \
         && rm -vrf /$root_ds/var/*
-	if ! ls -l /$pool_name/root/var/ | grep tmp | grep rwt; then
-		chmod 1777 /$pool_name/root/var/tmp
+	if ! ls -l /$pool_name/var/ | grep tmp | grep rwt; then
+		chmod 1777 /$pool_name/var/tmp
 	fi
 	if ! ls -l /$root_ds | grep tmp | grep rwt; then
 		chmod 1777 /$root_ds/tmp
@@ -153,13 +153,13 @@ correctUSR(){
 }
 
 adjustMounts(){
-    for i in $(listZFSDSs $pool_name "\($pool_name\$\|NAME\)" | sort -r ); do
+    for i in $(listZFSDSs $pool_name "NAME" | sort -r ); do
         if [ "$i" = "$root_ds" ]; then
             zfs set -u mountpoint=/ $i
-        elif [ "$i" = "$pool_name/root" ] || [ "$i" = "$pool_name/root/ROOT" ]; then
+        elif [ "$i" = "$pool_name" ] || [ "$i" = "$pool_name/ROOT" ]; then
             zfs set -u mountpoint=none $i
         else
-            zfs set -u mountpoint=$(echo $i | sed "s=$pool_name/root==g" ) $i
+            zfs set -u mountpoint=$(echo $i | sed "s=$pool_name==g" ) $i
         fi
     done
 
@@ -221,18 +221,24 @@ main(){
     case $1 in
     '-h'|'--help') helptxt && return 0
     ;;
-	'-a'|'--append') app_part=0; shift
+	'-a'|'--append')
+	    app_part=0
+	    shift
+	    main $@
+	    return $?
 	;;
 	'-e'|'--encrypt') 
 	    ecrypt=0
 	    root_labl=geli$labl_id
 	    shift
-	;;
-    esac
-	if echo $1 | grep -q "\-\([a-zA-z]\|\-[a-zA-z]\{1,\}\)"; then
 	    main $@
 	    return $?
-	fi
+	;;
+    esac
+#	 echo $1 | grep -q "\-\([a-zA-z]\|\-[a-zA-z]\{1,\}\)"; then
+#	    main $@
+#	    return $?
+#	fi
     dvc=$1
     backup=$2
 	snap_name=$3
@@ -260,7 +266,7 @@ main(){
     createPool || return $ERR_POOL
     echo "Restoring new pool $pool_name from $backup"
     copyBackup || return $ERR_SNAP
-    root_ds=$pool_name/root/ROOT/default
+    root_ds=$pool_name/ROOT/default
     echo "Testing if /usr-correction required"
     correctUSR || return $ERR_CUSR
     echo "Adjusting zfs mountpoints"
