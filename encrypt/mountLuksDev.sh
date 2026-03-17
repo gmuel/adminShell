@@ -97,9 +97,10 @@ listExternalLUKS(){
 }
 decrypt(){
     printHelp "$1" "decrypt" && return 0
+
+    [ -z "$1" ] && return -1
     ky_fl=$(printKeyFile /dev/$1 )
-    [ -z "$ky_fl" ] && return -1
-    cmd="cryptsetup luksOpen $2 ${1}_crypt --key-file /etc/cryptsetup-keys.d/$ky_fl"
+    cmd="cryptsetup luksOpen $2 luks-$(getUUID /dev/$1 ) --key-file /etc/cryptsetup-keys.d/$ky_fl"
     echo $cmd
     eval $cmd
 }
@@ -132,7 +133,10 @@ getBlkChars(){
 mountLuksDev(){
     printHelp "$1" "mountLuksDev" && return 0
     dr0=/dev/$1
-    dr1=/dev/mapper/${1}_crypt 
+    dr1=/dev/mapper/${1}_crypt
+    if [ -z "$dr1" ] || [ ! -L $dr1 ]; then
+        dr1=/dev/mapper/luks-$(getUUID $dr0 )
+    fi
     cmd="getBlkChars TYPE $dr0 -q -i luks"
     echo $cmd   
     if $cmd ; then
@@ -171,7 +175,7 @@ getUUID(){
 }
 encrypt(){
     printHelp "$1" "encrypt" && return 0
-    cryptsetup luksClose ${1}_crypt
+    cryptsetup luksClose luks-$(getUUID /dev/$1 ) # {1}_crypt
 }
 umountTemp(){
     printHelp "$1" "umountTemp" && return 0
@@ -195,12 +199,7 @@ umountLuksDev(){
     dr0=/media/$2/$uuid
     [[ -d $dr0 && -n "$(mount | grep $dr0 )" ]] && umountTemp $dr0 && encrypt $1
 }
-btr(){
-    btrfs $@
-}
-btrs(){
-    btr subvolume $@
-}
+
 printDvc(){
     ls /dev/sd*$1 | sed "s/\/dev\/\(sd.$1\)/\1/g"
 }
@@ -231,7 +230,7 @@ closeAll(){
     else
         pat="\(sd[b-z]"
     fi
-    pat="${pat}_crypt[1-9]\|luks-[a-f0-9]\+\(\-[a-f0-9]\)\+"
+    pat="${pat}_crypt[1-9]\|luks-[a-f0-9]\+\(\-[a-f0-9]\)\+\)"
     for i in $(ls /dev/mapper/ | grep "$pat"); do
         cryptsetup luksClose $i
     done
@@ -271,3 +270,4 @@ if [[ "$USER" != "root" ]]; then setKeyUser $USER
 elif pwd | grep home; then
     setKeyUser $(pwd | sed "s/\/home\/\([a-zA-Z0-9_]\+\)\/.\+/\1/g" )
 fi
+. btrs-utils.sh

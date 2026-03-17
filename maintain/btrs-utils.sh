@@ -14,6 +14,10 @@ listBtrs(){
 	btrs list $1
 }
 
+awkN(){
+    awk "{print \$$1}"
+}
+
 
 
 listByPat(){
@@ -24,11 +28,11 @@ listByLevel(){
 }
 
 get2ndCol(){
-	cut -d' ' -f2
+	awkN 2
 }
 
 get9thCol(){
-	cut -d' ' -f9
+	awkN 9
 }
 
 getLastByLevel(){
