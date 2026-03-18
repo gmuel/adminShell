@@ -195,7 +195,7 @@ umountTemp(){
 umountLuksDev(){
     printHelp "$1" "umountLuksDev" && return 0
     uuid=$(getUUID /dev/$1 )
-    echo device found with UUID $uuid
+    echo device found with UUID $uuid for device /dev/$1
     dr0=/media/$2/$uuid
     [[ -d $dr0 && -n "$(mount | grep $dr0 )" ]] && umountTemp $dr0 && encrypt $1
 }
@@ -268,6 +268,6 @@ backupHeader(){
 }
 if [[ "$USER" != "root" ]]; then setKeyUser $USER
 elif pwd | grep home; then
-    setKeyUser $(pwd | sed "s/\/home\/\([a-zA-Z0-9_]\+\)\/.\+/\1/g" )
+    setKeyUser $(pwd | sed "s=^/home/\([^/]\+\)\(/.\+\)*=\1=g" )
 fi
 . btrs-utils.sh
