@@ -2,7 +2,9 @@
 
 helptext(){
     cat << EOH
-$0 [options] [arg] - create backup arg/@date_string for any mount btrfs fs
+        $0 [options] [arg]
+                            create backup arg/@date_string for
+                            any mount btrfs fs
 
         files:
             /home/\$ADM_USER/*/backup.map   - two columns, maps backup UUID to common backup
@@ -17,7 +19,7 @@ $0 [options] [arg] - create backup arg/@date_string for any mount btrfs fs
             $ERR_PAR - decryption/mount of destination device failed
             $ERR_MOU - no mount point
             $ERR_VOL - no matching source device or parent volume found
-			$ERR_CHL - no snapshot created on given local subvol
+            $ERR_CHL - no snapshot created on given local subvol
             $ERR_SVL - no destination subvolume found
             $ERR_SND - sending incremental failed
             $ERR_BTH - neither parent nor child snapshot found
@@ -74,7 +76,7 @@ allUUIDs(){
 
 getBUVolId(){
     if [ -z "$backvol" ]; then
-        sys_fl=$(inxi -M | grep product | sed "s=.\+product\: \(MacBookAir\|Standard\|XPS\|HP\).\+=\1=g" )
+        sys_fl=$(inxi -M | grep product | sed "s=.\+product\: \(\(MacBookAir\|Standard\|XPS\|HP\)[^\:]\+\)\sv\:.\+=\1=g" )
         case "$sys_fl" in
         "Standard"|"VirtualBox")
 		    backvol=4
@@ -85,7 +87,7 @@ getBUVolId(){
 	    'XPS')
         	backvol=2
             ;;
-	    'HP')
+	    'HP Laptop 15-db0xxx')
         	backvol=1
             ;;
         *) # TODO should be exact check not generic, new generic should be error
@@ -124,7 +126,7 @@ mountDvc(){
     fi
 }
 getParent(){
-    lvl_id=$(listByPat $dr "$ssvl\$" | get2ndCol )
+    lvl_id=$(listByPat $dr "\s$ssvl\$" | get2ndCol )
     echo $lvl_id
     if [ -n "$lvl_id" ]; then
         vol=$(listByLevel $dr $lvl_id | get9thCol | tail -1 | sed "s=\(@[^\S/]*/\)\{0,\}==g" )
@@ -191,7 +193,7 @@ sendSnap(){
     fi
 }
 umountDvc(){
-    echo umounting backup destination and encrypting for $vol_str ...
+    echo umounting backup destination and encrypting for $dvc triggered by $vol_str0...
     umountLuksDev ${dvc//'/dev/'/} gab2
     echo done
 }
@@ -217,7 +219,7 @@ nextStep(){
             return $ext
         fi
     fi
-    echo current vol: $vol_str0, first vol: $frst
+    echo current vol: $vol_str0, init vol: $frst
     [[ "$vol_str0" == "$frst" || "$vol_str0/" == "$frst" ]] && umountDvc
     return 0
     
@@ -255,7 +257,10 @@ main(){
 
     cd $vol_str
     pwd
-    findDevice
+    if ! findDevice ; then
+        [ $? = $ERR_NOD ] && echo no device found - aborting && return $ERR_NOD
+        return $ERR_MAP
+    fi
     echo $dvc used as backup
     UUID=${UUID:-$(blkid -s UUID -o value $dvc )}
     echo having UUID $UUID
@@ -270,7 +275,7 @@ main(){
         echo No suitable subvolume found
         return $ERR_SVL
     fi
-    mountDvc
+    mountDvc || return $? 
     echo backup subvol mounted
     dr=/media/gab2/$UUID/
     getParent
@@ -279,13 +284,13 @@ main(){
         return $ERR_PAR
     fi
     echo Found parent volume "$vol_str$parent_vol"
-    initChild
+    initChild || return $?
     
     prn_vol="$vol_str$parent_vol"
     chl_vol="$vol_str$child_vol"
 #    fl=
     ext=${ext:-0}
-    sendSnap # $prn_vol $chl_vol
-    nextStep $@
+    sendSnap || return $? # $prn_vol $chl_vol
+    nextStep $@ || return $?
 }
 main $@
