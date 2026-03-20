@@ -131,7 +131,7 @@ getParent(){
     if [ -n "$lvl_id" ]; then
         vol=$(listByLevel $dr $lvl_id | get9thCol | tail -1 | sed "s=\(@[^\S/]*/\)\{0,\}==g" )
         echo $vol
-        if listByPat $vol_str $vol | grep .; then
+        if listByPat $vol_str "\s$vol\$" | grep .; then
             parent_vol=$vol
         fi
     fi
@@ -143,7 +143,7 @@ getChild(){
     fi
 }
 getTS(){
-    date +%Y%m%d_%H%M
+    date +%Y%m%d # _%H%M
 }
 findDevice(){
     dv=
