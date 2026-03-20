@@ -126,7 +126,7 @@ mountDvc(){
     fi
 }
 getParent(){
-    lvl_id=$(listByPat $dr "\s$ssvl\$" | get2ndCol )
+    lvl_id=$(listByPat $dr "\s$ssvl\$" | get2ndCol | tail -1 )
     echo $lvl_id
     if [ -n "$lvl_id" ]; then
         vol=$(listByLevel $dr $lvl_id | get9thCol | tail -1 | sed "s=\(@[^\S/]*/\)\{0,\}==g" )
