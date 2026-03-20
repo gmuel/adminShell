@@ -81,7 +81,7 @@ getBUVolId(){
         "Standard"|"VirtualBox")
 		    backvol=4
             ;;
-        'MacBookAir')
+        'MacBookAir8,2')
 		    backvol=3
             ;;
 	    'XPS')
