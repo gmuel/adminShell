@@ -253,7 +253,7 @@ main(){
         return $ERR_VOL
     fi
     
-    [[ "${vol_str:$((len-1))}" != "/" ]] && vol_str="$vol_str/"
+    [[ "${vol_str:$(($len-1))}" != "/" ]] && vol_str="$vol_str/"
 
     cd $vol_str
     pwd
