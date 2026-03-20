@@ -84,7 +84,7 @@ getBUVolId(){
         'MacBookAir8,2')
 		    backvol=3
             ;;
-	    'XPS')
+	    'XPS 15 9520')
         	backvol=2
             ;;
 	    'HP Laptop 15-db0xxx')
