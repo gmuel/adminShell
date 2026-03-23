@@ -137,10 +137,7 @@ getParent(){
     fi
 }
 getChild(){
-    lvl_id=$(listByPat $vol_str "@$dt_str" | get2ndCol )
-    if [ -n "$lvl_id" ]; then
-        listByLevel $vol_str $lvl_id | get9thCol
-    fi
+    listByPat $vol_str "\s@$dt_str\$" | get9thCol
 }
 getTS(){
     date +%Y%m%d # _%H%M
