@@ -116,10 +116,22 @@ fl=/etc/kernel/postinst.d/zzz-dracut-regenerate-all
 if [ ! -f $fl ] || ! grep '#!/bin' $fl ; then
     cat << EOI >> $fl
 #!/bin/sh
+
+getKver(){
+    str=
+    for i in \$(ls /boot/efi/EFI/Linux/ | grep efi ); do
+        istl_kver=\$(echo \$i | sed "s=.\+\([5-7]\.\([\.0-9\-]\+\)\(generic\|t2-noble\)\)[a-f0-9\-]\+\.efi=\1=g" )
+        [ -z "\$str" ] && str=\$istl_kver || str="\$str\|\$istl_kver"
+    done
+    ls /boot/ | grep vmlinuz- | sed "s=vmlinuz-==g"| grep -v -q "\(\$str\)"
+}
+
 echo "RUNNING zzz-dracut-regenerate-all script --- START"
 echo "Now regenerating all UKI files..."
 sleep 3
-dracut --force --regenerate-all -pv
+declare -a kver=( \${@:-\$(getKver )} )
+[ "\${#kver[@]}" = "0" ] && exit
+dracut --force --kver \${kver[0]} -pv
 echo "Regenerating all UKI files... Done"
 sleep 3
 echo "Now deleting all kernel systemd-boot related files..."
@@ -139,6 +151,8 @@ if [ -d /boot/efikeys ]; then
     fi
     echo "Verifing signatures for all systemd-boot UKI files... Done"
 fi
+kver=( \${kver[@]:1:} )
+[ "\${#kver[@]}" != "0" ] && zzz-dracut-regenerate-all \${kver[@]}
 echo "RUNNING zzz-dracut-regenerate-all script --- END"
 sleep 3
 EOI
