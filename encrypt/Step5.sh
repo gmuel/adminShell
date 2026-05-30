@@ -119,9 +119,8 @@ if [ ! -f $fl ] || ! grep '#!/bin' $fl ; then
 
 getKver(){
     str=
-    for i in \$(ls /boot/efi/EFI/Linux/ | grep efi ); do
-        istl_kver=\$(echo \$i | sed "s=.\+\([5-7]\.\([\.0-9\-]\+\)\(generic\|t2-noble\)\)[a-f0-9\-]\+\.efi=\1=g" )
-        [ -z "\$str" ] && str=\$istl_kver || str="\$str\|\$istl_kver"
+    for i in \$(ls /boot/efi/EFI/Linux/ | grep efi | sed "s=.\+\([5-7]\.\([\.0-9\-]\+\)\(generic\|t2-noble\)\)[a-f0-9\-]\+\.efi=\1=g" ); do
+        [ -z "\$str" ] && str=\$i || str="\$str\|\$i"
     done
     ls /boot/ | grep vmlinuz- | sed "s=vmlinuz-==g"| grep -v -q "\(\$str\)"
 }
@@ -151,7 +150,7 @@ if [ -d /boot/efikeys ]; then
     fi
     echo "Verifing signatures for all systemd-boot UKI files... Done"
 fi
-kver=( \${kver[@]:1:} )
+kver=( \${kver[@]:1} )
 [ "\${#kver[@]}" != "0" ] && zzz-dracut-regenerate-all \${kver[@]}
 echo "RUNNING zzz-dracut-regenerate-all script --- END"
 sleep 3
