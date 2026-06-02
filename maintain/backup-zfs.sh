@@ -3,7 +3,11 @@ set -x
 _bck_pl=${1:-backup-pool}
 _dt=${2:-$(date +%Y-%m-%d )}
 _ds_prnt=$(zfs list -t snapshot $_bck_pl/ROOT -H -o name | tail -1 | sed "s=$_bck_pl/ROOT==g" )
-_z_pool=$(uname | grep -q Linux && echo rpool || echo zroot )
+_z_pool=$(zpool get name -H -o name | grep "^\([rc]pool\|z\(root\|clone\)\)" )
+
+if [ -z "$_z_pool" ] || [ -z "$_ds_prnt" ] || ! zpool list -H -o name | grep $_bck_pl; then
+	exit 0
+fi
 
 zfs list -rt snapshot -H -o name $_z_pool | grep -v $_z_pool\@ | grep $_dt | while read _snp; do
 	opts=v
