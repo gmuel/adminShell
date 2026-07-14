@@ -1,5 +1,5 @@
 # Setup Hibernate
-# Adapted from https://forums.linuxmint.com/viewtopic.php?t=425394 comment/script @random person
+# Adapted from https://forums.linuxmint.com/viewtopic.php?t=425394 comment/script @random person: https://forums.linuxmint.com/viewtopic.php?p=2509306#p2509306
 
 helptext(){
 
