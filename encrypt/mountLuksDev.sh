@@ -97,10 +97,10 @@ listExternalLUKS(){
 }
 decrypt(){
     printHelp "$1" "decrypt" && return 0
-
+    local _dvc=/dev/$1
     [ -z "$1" ] && return -1
-    ky_fl=$(printKeyFile /dev/$1 )
-    cmd="cryptsetup luksOpen $2 luks-$(getUUID /dev/$1 ) --key-file /etc/cryptsetup-keys.d/$ky_fl"
+    ky_fl=$(printKeyFile $_dvc )
+    cmd="cryptsetup luksOpen $_dvc luks-$(getUUID $_dvc ) --key-file /etc/cryptsetup-keys.d/$ky_fl"
     echo $cmd
     eval $cmd
 }
@@ -144,7 +144,7 @@ mountLuksDev(){
 	    cmd="getBlkChars UUID $dr1 -q ."
 	    echo $cmd
         if ! $cmd ; then
-            cmd="decrypt $1 $dr0"
+            cmd="decrypt $1"
 	        $cmd 
             cde=$?
         fi
