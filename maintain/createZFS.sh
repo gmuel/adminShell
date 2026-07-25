@@ -6,11 +6,48 @@ _sws=
 _zp=
 _nswp=
 _ecp=
+_mnt
 
 _uuid0=
 _uuid1=
 _rt=
 _vb=
+
+helptxt(){
+	cat << EOH
+	$0 [options] ROOT-DEVICE [SWAP-SIZE] [POOL-NAME] [MOUNT-POINT]
+	Prepares a disk or root device for linux distro on ZFS
+	Disk layout:
+		ROOT-DEVICE GPT
+		partition 1 ESP      2G
+		partition 2 LUKS/LVM rest-of-disk
+		LVM	      1 SWAP     SWAP-SIZE
+		LVM       2 ZFS      rest-of-lvm
+		
+	ZFS dataset layout:
+		POOL-NAME              none
+		POOL-NAME/ROOT         none
+		POOL-NAME/ROOT/lm_cinn /
+		POOL-NAME/home         legacy
+		POOL-NAME/opt          legacy
+		POOL-NAME/usr          legacy
+		POOL-NAME/usr/local    legacy
+		POOL-NAME/var          legacy
+		POOL-NAME/var/cache    legacy
+		POOL-NAME/var/lib      legacy
+		POOL-NAME/var/log      legacy
+		POOL-NAME/var/spool    legacy
+		POOL-NAME/var/tmp      legacy
+		
+	Args:
+         ROOT-DEVICE disk/file: e.g. /dev/nvme0n1, /dev/sda, /my_disk_file.img
+         SWAP-SIZE   size of swap LV, defaults to memory size (+1G)
+         POOL-NAME   ZFS pool name, defaults to rpool
+         MOUNT-POINT altroot of ZFS pool
+    Options:
+    	-h/--help	
+EOH
+}
 
 getMem(){
     free -h | grep Mem | awk '{print $2}' | sed "s/^\([0-9]\+\)\..\+Gi/\1/g"
@@ -79,7 +116,7 @@ createPool(){
     zpool create -o ashift=12 -o autotrim=on -o cachefile=/etc/zfs/zpool.cache \
         -O acltype=posixacl -O xattr=sa -O dnodesize=auto \
         -O compression=zstd -O normalization=formD -O relatime=on \
-        -O mountpoint=none -R /mnt $_zp $_rt
+        -O mountpoint=none -R $_mnt $_zp $_rt
 
 }
 createDSLayout(){
@@ -104,12 +141,18 @@ setUUIDs(){
 createFSTAB(){
 	mkfs.vfat -F 32 ${_rtd}1
 	mkswap $_swp
-    printf "# Custom fstab\n# EFI system partition\nUUID=$(getUUID ${_rtd}1 )\t/boot/efi\tvfat\tdefaults,umask=0077\t0\t1\n" > /mnt/etc/fstab
-    printf "# Swap partition\nUUID=$(getUUID $_swp )\tnone\tswap\tdiscard\t0\t0\n" >> /mnt/etc/fstab
-    zfs get mountpoint -rH -o name,value $_zp | grep legacy | while read _ds _mnt; do
-    	printf "#$_ds on\n$_ds\t${_ds//$_zp/}\tzfs\trw,relatime,xattr,posixacl,casesensitive\t0\t0\n" >> /mnt/etc/fstab
+    printf "# Custom fstab\n# EFI system partition\nUUID=$(getUUID ${_rtd}1 )\t/boot/efi\tvfat\tdefaults,umask=0077\t0\t1\n" > $_mnt/etc/fstab
+    printf "# Swap partition\nUUID=$(getUUID $_swp )\tnone\tswap\tdiscard\t0\t0\n" >> $_mnt/etc/fstab
+    zfs get mountpoint -rH -o name,value $_zp | grep legacy | while read _ds _mnp; do
+    	printf "#$_ds on\n$_ds\t${_ds//$_zp/}\tzfs\trw,relatime,xattr,posixacl,casesensitive\t0\t0\n" >> $_mnt/etc/fstab
     done
     systemctl daemon-reload
+}
+
+mountZFS(){
+    zfs get mountpoint -rH -o name,value $_zp | grep legacy | while read _ds _mnp; do
+    	mount -t zfs $_ds $_mnt${_ds//$_zp/}
+    done
 }
 
 main(){
@@ -145,6 +188,7 @@ main(){
 	fi
 	_sws=${2:-$(($(getMem )+1))}
 	_zp=${3:-rpool}
+	_mnt=${4:-/mnt}
 	
 	createPart 
 	[ -n "$_ecp" ] && encrypt
@@ -153,5 +197,6 @@ main(){
 	createPool
 	createDSLayout
 
-	createFSTAB
+	#createFSTAB
+	mountZFS
 }
