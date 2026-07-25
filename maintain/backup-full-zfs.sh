@@ -26,6 +26,7 @@ esac
 _src=$1
 _dst=$2
 _zp=$(echo $_src | cut -d/ -f1 )
+_ropts="-u -o canmount=off -o readonly=on"
 
 zfs get encryption -rHt filesystem -o name,value $_src | while read _ds _enc; do 
     [ "$_enc" = "off" ] && opts=v || opts=vw
@@ -37,9 +38,9 @@ zfs get encryption -rHt filesystem -o name,value $_src | while read _ds _enc; do
             continue
         fi
         if [ -n "$_prt" ]; then
-            zfs send -$opts -i $_prt $_snp | zfs receive -u -o canmount=off -o readonly=on $(echo $_trg | cut -d@ -f1 )
+            zfs send -$opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || break
         else
-            zfs send -$opts $_snp | zfs receive -u -o canmount=off -o readonly=on $_trg
+            zfs send -$opts $_snp | zfs receive $_ropts $_trg || break
         fi
         _prt=$_snp
     done
