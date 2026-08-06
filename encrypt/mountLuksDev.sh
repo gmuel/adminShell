@@ -97,9 +97,19 @@ listExternalLUKS(){
 }
 decrypt(){
     printHelp "$1" "decrypt" && return 0
-    local _dvc=/dev/$1
     [ -z "$1" ] && return -1
+    local _dvc=
+    if ! echo $1 | grep -q dev ; then
+        _dvc=/dev/$1
+    else
+        _dvc=$1
+    fi
+    [ ! -b $_dvc ] && echo no such block device $_dvc && return
     ky_fl=$(printKeyFile $_dvc )
+    if [ -z "$ky_fl" ] || [ ! -f $kyfl ]; then
+        echo no matching key file for device $_dvc
+        return
+    fi
     cmd="cryptsetup luksOpen $_dvc luks-$(getUUID $_dvc ) --key-file /etc/cryptsetup-keys.d/$ky_fl"
     echo $cmd
     eval $cmd
