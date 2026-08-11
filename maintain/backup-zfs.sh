@@ -1,22 +1,117 @@
-#!/bin/sh
+#!/bin/bash
 set -x
-_bck_pl=${1:-backup-pool}
-_dt=${2:-$(date +%Y-%m-%d )}
-_ds_prnt=$(zfs list -t snapshot $_bck_pl/ROOT -H -o name | tail -1 | sed "s=$_bck_pl/ROOT==g" )
-_z_pool=$(zpool get name -H -o name | grep "^\([rc]pool\|z\(root\|clone\)\)" )
+_bck=
+_zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
+_fl=bin/zfsDev.map
+_dt=$(date +%Y-%m-%d )
 
-if [ -z "$_z_pool" ] || [ -z "$_ds_prnt" ] || ! zpool list -H -o name | grep $_bck_pl; then
-	exit 0
-fi
+ERR_NO_DVC=1
+ERR_NO_KEY=2
+ERR_NO_IMP=3
+ERR_NO_MNT=4
 
-zfs list -rt snapshot -H -o name $_z_pool | grep -v $_z_pool\@ | grep $_dt | while read _snp; do
-	opts=v
-	if [ "$(zfs get encryption -H -o value $_snp )" != "off" ]; then
-		opts="${opts}w"
-	fi
-	ds_nm=$(echo $_snp | sed "s=@[0-9\-]\{8,10\}==g" )
-	trg_sn=$_bck_pl$(echo $_snp | sed "s=$_z_pool==g" )
-	if ! zfs list -t snapshot $trg_sn 2>> /dev/null; then
-		zfs send "-$opts" -i $ds_nm$_ds_prnt $_snp | zfs receive -u -o canmount=noauto -o readonly=on $_bck_pl$(echo $ds_nm | sed "s=$_z_pool==g" ) || exit 1
-	fi
-done
+export PATH=$(dirname $0 ):$PATH
+
+helptxt(){
+    cat << EOH
+    $0 [OPTIONS] [FLAG]
+    
+    Create and/or simply incrementally send all snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
+    This util requires a backup config file called zfsDev.map, a three columned file of format:
+    
+    UUID                    KEYFILEPATH                             DATASET
+    e.g.
+    123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  backup/dataset/machine-id
+    
+    The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
+    
+    Arguments
+        FLAG   ''     empty string means no snapshot created
+               full   create full system snapshot
+               home   create recursive home dataset snapshot
+               DS     any valid dataset in root ZPOOL
+               
+    Options
+            -h/--help   print this message
+            
+    Exit codes:
+        0    no problems encountered
+        $ERR_NO_DVC    No backup device found - must be present in config
+        $ERR_NO_KEY    No backup keyfile found - must be present in config
+        $ERR_NO_IMP    No ZPOOL to import
+        $ERR_NO_MNT    Mountpoint /mnt currently in use
+               
+EOH
+}
+
+getDvcSpec(){
+    grep $1 $_fl | awk "{print \$$2}" 
+}
+
+decrypt(){
+    local uuid=$(echo $1 | grep "[a-f0-9\-]\+" )
+    if [ -z "$uuid" ] || [ ! -L /dev/disk/by-uuid/$uuid ]; then
+        return $ERR_NO_DVC
+    fi
+    ky=$(getDvcSpec $uuid 2 )
+    if [ -n "$ky" ]; then
+        if [ ! -L /dev/mapper/luks-$uuid ]; then
+            cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $ky
+        fi
+    else
+        return $ERR_NO_KEY
+    fi
+}
+
+impPool(){
+    _bck=$(zpool import | grep "pool:" | awk '{print $2}' )
+    [ -z "$_bck" ] && return $ERR_NO_IMP
+    if ! mount | grep /mnt; then
+        zpool import -f -R /mnt $_bck
+    else
+        return $ERR_NO_MNT
+    fi
+}
+
+createSnap(){
+    if ! zfs list -Ht snapshot -o name $1 | grep $_dt ; then
+        zfs snapshot -r $1@$_dt
+    fi
+}
+
+main(){
+    case "$1" in
+        -h|--help)
+            helptxt
+            return
+            ;;
+        full)
+            createSnap $_zp
+            ;;
+        home)
+            createSnap $_zp/home
+            ;;
+        '')
+            ;;
+        *)
+            _ds=$(zfs list -rHo name $_zp | grep $1 )
+            if [ -n "$_ds" ]; then
+                createSnap $_ds
+            fi
+    esac
+    for uuid in $(awk '{print $1}' $_fl ); do
+        decrypt $uuid || continue
+        impPool || continue
+        _ds=$(getDvcSpec $uuid 3 )
+        if [ -n "$_ds" ]; then
+            [ "${ds:0:1}" = "/" ] && _trg=$_bck$_ds || _trg=$_bck/$_ds
+        else
+            _trg=$_bck
+        fi
+        backup-full-zfs.sh $_zp $_trg
+        zpool export $_bck
+        cryptsetup luksClose luks-$uuid
+    done
+}
+
+main $@
