@@ -1,35 +1,40 @@
 #!/bin/bash
+
+
 set -x
-_bck=
-_zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
-_fl=bin/zfsDev.map
-_dt=$(date +%Y-%m-%d )
 
 ERR_NO_DVC=1
 ERR_NO_KEY=2
 ERR_NO_IMP=3
 ERR_NO_MNT=4
+ERR_NO_RTP=5
+ERR_NO_CFG=6
 
-export PATH=$(dirname $0 ):$PATH
+_bck=
+_zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
+[ -z "$_zp" ] && return $ERR_NO_RTP
+_fl=bin/zfsDev.map
+[ ! -f $_fl ] && return $ERR_NO_CFG
+_dt=$(date +%Y-%m-%d )
 
 helptxt(){
     cat << EOH
     $0 [OPTIONS] [FLAG]
     
     Create and/or simply incrementally send all snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
-    This util requires a backup config file called zfsDev.map, a three columned file of format:
+    This util requires a LUKS keyfile and a backup config file called zfsDev.map, a three columned file of format:
     
-    UUID                    KEYFILEPATH                             DATASET
+    UUID                    KEYFILE-PATH                            TARGET-DATASET
     e.g.
-    123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  backup/dataset/machine-id
+    123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  dataset/machine-id
     
     The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
     
     Arguments
-        FLAG   ''     empty string means no snapshot created
-               full   create full system snapshot
-               home   create recursive home dataset snapshot
-               DS     any valid dataset in root ZPOOL
+        FLAG   ''/none   empty string means no snapshot created
+               full      create full system snapshot
+               home      create recursive home dataset snapshot
+               DS        any valid dataset in root ZPOOL
                
     Options
             -h/--help   print this message
@@ -40,6 +45,8 @@ helptxt(){
         $ERR_NO_KEY    No backup keyfile found - must be present in config
         $ERR_NO_IMP    No ZPOOL to import
         $ERR_NO_MNT    Mountpoint /mnt currently in use
+        $ERR_NO_RTP    No root pool found - must match rpool or cpool
+        $ERR_NO_CFG    No backup config file found
                
 EOH
 }
@@ -91,7 +98,7 @@ main(){
         home)
             createSnap $_zp/home
             ;;
-        '')
+        ''|none)
             ;;
         *)
             _ds=$(zfs list -rHo name $_zp | grep $1 )
