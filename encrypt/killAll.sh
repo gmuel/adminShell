@@ -1,8 +1,9 @@
 #!/bin/bash
-
+set -x
 getChildPIDs(){
+    _dpt=${2:-0}
 	ps -ef | grep $1 | awk '{print $2}' | grep -v $1 | sort -r | grep "[0-9]\+" | while read _cid; do
-		getChildPIDs $_cid
+		[ $_dpt -le 3 ] && getChildPIDs $_cid $(($_dpt+1))
 		echo $_cid
 	done
 }
