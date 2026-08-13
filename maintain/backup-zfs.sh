@@ -12,9 +12,9 @@ ERR_NO_CFG=6
 
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
-[ -z "$_zp" ] && return $ERR_NO_RTP
+[ -z "$_zp" ] && exit $ERR_NO_RTP
 _fl=bin/zfsDev.map
-[ ! -f $_fl ] && return $ERR_NO_CFG
+[ ! -f $_fl ] && exit $ERR_NO_CFG
 _dt=$(date +%Y-%m-%d )
 
 helptxt(){
@@ -58,7 +58,7 @@ getDvcSpec(){
 decrypt(){
     local uuid=$(echo $1 | grep "[a-f0-9\-]\+" )
     if [ -z "$uuid" ] || [ ! -L /dev/disk/by-uuid/$uuid ]; then
-        return $ERR_NO_DVC
+        exit $ERR_NO_DVC
     fi
     ky=$(getDvcSpec $uuid 2 )
     if [ -n "$ky" ]; then
@@ -66,17 +66,17 @@ decrypt(){
             cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $ky
         fi
     else
-        return $ERR_NO_KEY
+        exit $ERR_NO_KEY
     fi
 }
 
 impPool(){
     _bck=$(zpool import | grep "pool:" | awk '{print $2}' )
-    [ -z "$_bck" ] && return $ERR_NO_IMP
+    [ -z "$_bck" ] && exit $ERR_NO_IMP
     if ! mount | grep /mnt; then
         zpool import -f -R /mnt $_bck
     else
-        return $ERR_NO_MNT
+        exit $ERR_NO_MNT
     fi
 }
 
@@ -90,7 +90,7 @@ main(){
     case "$1" in
         -h|--help)
             helptxt
-            return
+            exit
             ;;
         full)
             createSnap $_zp
