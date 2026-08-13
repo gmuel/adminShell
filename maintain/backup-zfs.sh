@@ -58,7 +58,7 @@ getDvcSpec(){
 decrypt(){
     local uuid=$(echo $1 | grep "[a-f0-9\-]\+" )
     if [ -z "$uuid" ] || [ ! -L /dev/disk/by-uuid/$uuid ]; then
-        exit $ERR_NO_DVC
+        return $ERR_NO_DVC
     fi
     ky=$(getDvcSpec $uuid 2 )
     if [ -n "$ky" ]; then
@@ -66,7 +66,7 @@ decrypt(){
             cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $ky
         fi
     else
-        exit $ERR_NO_KEY
+        return $ERR_NO_KEY
     fi
 }
 
@@ -76,7 +76,7 @@ impPool(){
     if ! mount | grep /mnt; then
         zpool import -f -R /mnt $_bck
     else
-        exit $ERR_NO_MNT
+        return $ERR_NO_MNT
     fi
 }
 
