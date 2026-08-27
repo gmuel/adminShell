@@ -16,6 +16,7 @@ _zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
 _fl=bin/zfsDev.map
 [ ! -f $_fl ] && exit $ERR_NO_CFG
 _dt=$(date +%Y-%m-%d )
+export PATH=$(pwd )/$(dirname $0 ):$PATH
 
 helptxt(){
     cat << EOH
