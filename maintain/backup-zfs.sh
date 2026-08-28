@@ -9,6 +9,7 @@ ERR_NO_IMP=3
 ERR_NO_MNT=4
 ERR_NO_RTP=5
 ERR_NO_CFG=6
+ERR_NO_SDS=7
 
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
@@ -32,7 +33,7 @@ helptxt(){
     The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
     
     Arguments
-        FLAG   ''/none   empty string means no snapshot created
+        FLAG   ''/none   create no snapshot
                full      create full system snapshot
                home      create recursive home dataset snapshot
                DS        any valid dataset in root ZPOOL
@@ -48,12 +49,13 @@ helptxt(){
         $ERR_NO_MNT    Mountpoint /mnt currently in use
         $ERR_NO_RTP    No root pool found - must match rpool or cpool
         $ERR_NO_CFG    No backup config file found
+        $ERR_NO_SDS    No such dataset in root/source pool
                
 EOH
 }
 
 getDvcSpec(){
-    grep $1 $_fl | awk "{print \$$2}" 
+    awk "{if(\$1 == \"$1\"){print \$$2}}" $_fl 
 }
 
 decrypt(){
@@ -72,7 +74,7 @@ decrypt(){
 }
 
 impPool(){
-    _bck=$(zpool import | grep "pool:" | awk '{print $2}' )
+    _bck=$(zpool import | awk '{if($1 == "pool:"){print $2}}' )
     [ -z "$_bck" ] && exit $ERR_NO_IMP
     if ! mount | grep /mnt; then
         zpool import -f -R /mnt $_bck
@@ -105,6 +107,8 @@ main(){
             _ds=$(zfs list -rHo name $_zp | grep $1 )
             if [ -n "$_ds" ]; then
                 createSnap $_ds
+            else
+                exit $ERR_NO_SDS
             fi
     esac
     for uuid in $(awk '{print $1}' $_fl ); do
