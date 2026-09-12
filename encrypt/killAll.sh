@@ -9,7 +9,7 @@ getChildPIDs(){
 }
 
 if [ -z "$1" ] || [ ! -d /home/$1 ] || ! mount | grep $1; then
-	exit
+	exit 1
 fi
 
 ps -u $1 | awk '{print $1}' | sort -r | while read _pid; do
