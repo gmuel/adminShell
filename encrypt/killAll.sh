@@ -8,7 +8,7 @@ getChildPIDs(){
 	done
 }
 
-if [ -z "$1" ] || [ ! -d /home/$1 ] || ! mount | grep $1; then
+if [ -z "$1" ] || [ ! -d /home/$1 ] || ! mount | grep $1 || who | grep $1; then
 	exit 1
 fi
 
