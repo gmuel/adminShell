@@ -1,0 +1,6 @@
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+SHELL=/bin/bash
+MAILTO=''
+#M	S	T	M	W	User	Command
+*/20	*	*	*	*	root	runCloseDs.sh > /dev/null 2>&1
+# End of Job
