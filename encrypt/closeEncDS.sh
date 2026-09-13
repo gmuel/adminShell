@@ -4,7 +4,7 @@ set -x
 
 [ -z "$1" ] && exit 0
 _dr=$(dirname $0 )
-[ "${_ds:0:1}" != "/" ] && _dr="$(pwd )/$_dr"
+[ "${_dr:0:1}" != "/" ] && _dr="$(pwd )/$_dr"
 echo $PATH | grep -q $_dr || export PATH=$_dr:$PATH
 _ds=rpool/home/$1
 mount | grep $_ds || exit 0
