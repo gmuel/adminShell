@@ -16,7 +16,7 @@ unmountDS(){
 _dr=$(dirname $0 )
 [ "${_dr:0:1}" != "/" ] && _dr="$(pwd )/$_dr"
 echo $PATH | grep -q $_dr || export PATH=$_dr:$PATH
-_zp=$(zpool get name -Ho value )
+_zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
 _ds=$_zp/home/$1
 mount | grep $_ds || exit 0
 who | grep $1 && exit 0
