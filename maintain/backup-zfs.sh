@@ -13,9 +13,7 @@ ERR_NO_SDS=7
 
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
-[ -z "$_zp" ] && exit $ERR_NO_RTP
 _fl=bin/zfsDev.map
-[ ! -f $_fl ] && exit $ERR_NO_CFG
 _dt=$(date +%Y-%m-%d )
 export PATH=$(pwd )/$(dirname $0 ):$PATH
 
@@ -111,6 +109,10 @@ main(){
                 exit $ERR_NO_SDS
             fi
     esac
+
+    [ -z "$_zp" ] && exit $ERR_NO_RTP
+    [ ! -f $_fl ] && exit $ERR_NO_CFG
+
     for uuid in $(awk '{print $1}' $_fl ); do
         decrypt $uuid || continue
         impPool || continue
