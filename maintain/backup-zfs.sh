@@ -86,6 +86,9 @@ createSnap(){
         zfs snapshot -r $1@$_dt
     fi
 }
+reportFail(){
+    echo "Backup failed for UUID '$1'"
+}
 
 main(){
     case "$1" in
@@ -113,18 +116,23 @@ main(){
     [ -z "$_zp" ] && exit $ERR_NO_RTP
     [ ! -f $_fl ] && exit $ERR_NO_CFG
 
-    for uuid in $(awk '{print $1}' $_fl ); do
-        decrypt $uuid || continue
+    for _uuid in $(awk '{print $1}' $_fl ); do
+        decrypt $_uuid || continue
         impPool || continue
-        _ds=$(getDvcSpec $uuid 3 )
+        _ds=$(getDvcSpec $_uuid 3 )
         if [ -n "$_ds" ]; then
             [ "${ds:0:1}" = "/" ] && _trg=$_bck$_ds || _trg=$_bck/$_ds
         else
             _trg=$_bck
         fi
         backup-full-zfs.sh $_zp $_trg
+        _fl=$?
+        if [ $_fl != 0 ]; then
+            reportFail $_uuid $_fl
+            exit $(($ERR_NO_SDS+$_fl+1))
+        fi
         zpool export $_bck
-        cryptsetup luksClose luks-$uuid
+        cryptsetup luksClose luks-$_uuid
     done
 }
 
