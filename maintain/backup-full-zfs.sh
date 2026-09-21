@@ -69,7 +69,7 @@ esac
 
 
 _fail=
-for _ds in $(zfs list -rHt filesystem -o name $_src | grep -v "^$_src\s" ); do # | while read _ds _enc; do  #
+for _ds in $(zfs list -rHt filesystem -o name $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
 
     [ "$(zfs get encryption -Ho value $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
