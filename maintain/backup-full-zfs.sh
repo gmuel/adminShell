@@ -8,6 +8,7 @@ _dst=$2
 _zp=$(echo $_src | cut -d/ -f1 )
 _opts=
 _ropts="-u -o canmount=off -o readonly=on"
+set -x
 
 helptxt(){
     cat << EOH
@@ -28,18 +29,35 @@ helptxt(){
 EOH
 }
 failMsg(){
-    [ -z "$4" ] && echo "Sending '$2' failed with status '$3'" && exit $1 \
-        || echo "Sending '$2' of parent '$4' failed with status '$3'" && exit $1
+    if [ -z "$3" ]; then
+        echo "Sending '$2' failed with status '$1'"
+    else
+        echo "Sending '$2' of parent '$3' failed with status '$1'"
+    fi
 }
 sendSnap(){
     _snp=$1
     _trg=$2
     _prt=$3
+    local _flg=0
     if [ -n "$_prt" ]; then
-        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || exit failMsg $ERR_PRT_SEND $_snp $? $_prt
+        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 )
+        _flg=$ERR_PRT_SEND
     else
-        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || failMsg $ERR_SNG_SEND $_snp $?
+        zfs send -$_opts $_snp | zfs receive $_ropts $_trg
+        _flg=$ERR_SNG_SEND
     fi
+    case $_flg in
+        $ERR_SNG_SEND)
+            failMsg $ERR_SNG_SEND $_snp
+            ;;
+        $ERR_PRT_SEND)
+            failMsg $ERR_PRT_SEND $_snp $_prt
+            ;;
+        *)
+            ;;
+    esac
+    return $_flg
 }
 
 case $1 in
@@ -50,15 +68,18 @@ case $1 in
 esac
 
 
+_fail=
+for _ds in $(zfs list -rHt filesystem -o name $_src ); do # | while read _ds _enc; do  # | grep -v "^$_src\s"
 
-zfs get encryption -rHt filesystem -o name,value $_src | while read _ds _enc; do 
-    [ "$_enc" = "off" ] && _opts=v || _opts=vw
+    [ "$(zfs get encryption -Ho value $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
-    zfs list -Ht snapshot -o name $_ds | while read _snp; do
+    for _snp in $(zfs list -Ht snapshot -o name $_ds ); do
         _trg=$_dst${_snp//$_zp/}
         if ! zfs list -H -o name $_trg 2>> /dev/null  | grep -q . ; then
-            sendSnap $_snp $_trg $_prt
+            sendSnap $_snp $_trg $_prt || _fail=$?
+            [ "$_fail" = "0" ] && _fail= || break
         fi
         _prt=$_snp
     done
+    [ -n "$_fail" ] && exit $_fail
 done
