@@ -84,7 +84,9 @@ impPool(){
 
 createSnap(){
     if ! zfs list -Ht snapshot -o name $1 | grep $_dt ; then
-        zfs snapshot -r $1@$_dt
+        zfs get origin -rHt filesystem $1 | awk '{if($2 == "-"){print $1}}' | while read _ds; do
+            zfs snapshot $1@$_dt
+        done
     fi
 }
 reportFail(){
@@ -99,6 +101,7 @@ main(){
             ;;
         full)
             createSnap $_zp
+            blockingClone.sh
             ;;
         home)
             createSnap $_zp/home

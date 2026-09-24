@@ -1,0 +1,40 @@
+#!/bin/bash
+
+helptxt(){
+    cat << EOH
+    $0 [options] [DATASET]
+    create clones recursively for all child datasets in the form:
+    SNAPSHOT-NAME                    CLONE-NAME
+    pool/data/set1@my-snapshot       pool/my-snapshot/data/set1
+
+    i.e. calling '$0 pool/data/set1'
+    On success all but the last clones are destroyed
+EOH
+}
+
+case "$1" in
+    -h|--help)
+        helptxt
+        exit
+        ;;
+esac
+
+set -x
+_zp={$1:-$(mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1 )}
+[ -z "$_zp" ] && exit
+
+zfs get origin -rHt filesystem -o name,value $_zp | awk '{if($2 == "-"){print $1}}' | while read _ds; do
+    _lst=$(zfs list -Ht snapshot -o name $_ds | tail -1 )
+    _snpnm=$(echo $_lst | cut -d@ -f2 )
+    _clnm=rpool/$_snpnm${_ds//$_zp/}
+    if zfs list -Ho name $_clnm 2>> /dev/null | grep -q .; then
+        break
+    fi
+    zfs clone $_lst $_clnm
+done || exit 1
+
+zfs get origin -rHt filesystem -o name,value $_zp | awk '{if($2 != "-"){print $1}}' | while read _ds; do
+    [ -n "$_ds0" ] && zfs destroy -r $_ds0 # && break
+    _ds0=$_ds
+done || exit 2
+
