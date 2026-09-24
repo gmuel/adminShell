@@ -127,10 +127,10 @@ main(){
             _trg=$_bck
         fi
         backup-full-zfs.sh $_zp $_trg
-        _fl=$?
-        if [ $_fl != 0 ]; then
-            reportFail $_uuid $_fl
-            exit $(($ERR_NO_SDS+$_fl+1))
+        _flg=$?
+        if [ $_flg != 0 ]; then
+            reportFail $_uuid $_flg
+            exit $(($ERR_NO_SDS+$_flg+1))
         fi
         zpool export $_bck
         cryptsetup luksClose luks-$_uuid

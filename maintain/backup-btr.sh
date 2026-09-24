@@ -131,7 +131,7 @@ getParent(){
     if [ -n "$lvl_id" ]; then
         vol=$(listByLevel $dr $lvl_id | get9thCol | tail -1 | sed "s=\(@[^\S/]*/\)\{0,\}==g" )
         echo $vol
-        if listByPat $vol_str "\s$vol\$" | grep .; then
+        if [ -n "$vol" ] && listByPat $vol_str "\s$vol\$" | grep "\S\+" ; then
             parent_vol=$vol
         fi
     fi
@@ -169,18 +169,24 @@ initChild(){
     fi
 }
 sendSnap(){
-    prn_vol=${prn_vol:-1}
-    chl_vol=${chl_vol:-2}
-    if [[ -z "$prn_vol" || -z "$chl_vol" ]]; then
-        [[ -z "$prn_vol" && -z "$chl_vol" ]] && echo neither parent nor child subvolume found && return $ERR_BTH
-        [[ -z "$prn_vol" ]] && echo no parent subvolume found && return $ERR_PRV
+    prn_vol=${2:-$prn_vol}
+    chl_vol=${1:-$chl_vol}
+    if [[ -z "$chl_vol" ]]; then
         echo no child subvolume found && return $ERR_CHV
     fi
     ch_chk=$(listByPat $dr "$ssvl/$child_vol\$" | get9thCol )
-    if [ -z "$ch_chk" ]; then
+    if [ -z "$ch_chk" ] && [ -n "$prn_vol" ]; then
         echo "btr send -p $prn_vol $chl_vol | btr receive $dr$ssvl"
         if btr send -p "$prn_vol" "$chl_vol" | btr receive $dr$ssvl; then
 		    echo "Child vol: \"$chl_vol\" of parent vol: \"$prn_vol\" sent to '$dr$ssvl'"
+        else
+		    ext=$ERR_SND
+		    fl=fail
+	    fi
+    elif [[ -z "$prn_vol" && -n "$chl_vol" ]]; then
+        echo "btr send $chl_vol | btr receive $dr$ssvl"
+        if btr send "$chl_vol" | btr receive $dr$ssvl; then
+		    echo "Initial vol: \"$chl_vol\" sent to '$dr$ssvl'"
         else
 		    ext=$ERR_SND
 		    fl=fail
@@ -275,15 +281,15 @@ main(){
     mountDvc || return $? 
     echo backup subvol mounted
     dr=/media/gab2/$UUID/
+    parent_vol=; child_vol=; prn_vol=; chl_vol=
     getParent
-    if [ -z "$parent_vol" ]; then
-        echo "No suitable subvol found for parent in $vol_str and $dr"
-        return $ERR_PAR
-    fi
-    echo Found parent volume "$vol_str$parent_vol"
+#    if [ -z "$parent_vol" ]; then
+#        echo "No suitable subvol found for parent in $vol_str and $dr"
+#        return $ERR_PAR
+#    fi
     initChild || return $?
     
-    prn_vol="$vol_str$parent_vol"
+    [ -n "$parent_vol" ] && echo Found parent volume "$vol_str$parent_vol" && prn_vol="$vol_str$parent_vol"
     chl_vol="$vol_str$child_vol"
 #    fl=
     ext=${ext:-0}
