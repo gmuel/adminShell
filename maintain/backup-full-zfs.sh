@@ -41,11 +41,9 @@ sendSnap(){
     _prt=$3
     local _flg=0
     if [ -n "$_prt" ]; then
-        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 )
-        _flg=$ERR_PRT_SEND
+        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
     else
-        zfs send -$_opts $_snp | zfs receive $_ropts $_trg
-        _flg=$ERR_SNG_SEND
+        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
     fi
     case $_flg in
         $ERR_SNG_SEND)
