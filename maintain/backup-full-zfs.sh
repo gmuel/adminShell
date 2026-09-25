@@ -87,7 +87,18 @@ for _ds in $(listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds 
         done
     else
         _snps=( $(lastSnap $_ds 2 ) )
-        sendSnap ${_snps[0]} $_trg ${_snps[1]} || fail=$?
+        _snp=; _prt=
+        if [ -z "${_snps[1]}" ]; then
+            _snp=${_snps[0]}
+        else
+            _snp=${_snps[1]}
+            _prt=${_snps[0]}
+        fi
+        _trg=$_dst${_snp//$_src/}
+        if zfs list -Ho name $_trg 2>> /dev/null | grep -q "\S\+"; then
+            continue
+        fi
+        sendSnap $_snp $_trg $_prt || _fail=$?
     fi
-    [ -n "$_fail" ] && exit $_fail
+    [ -z "$_fail" ] && [ $_fail -ne 0 ] && exit $_fail
 done
