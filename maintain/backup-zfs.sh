@@ -17,6 +17,7 @@ _fl=bin/zfsDev.map
 _dt=$(date +%Y-%m-%d )
 _sfl=
 export PATH=$(pwd )/$(dirname $0 ):$PATH
+. zfs-utils.sh
 
 helptxt(){
     cat << EOH
@@ -49,7 +50,8 @@ helptxt(){
         $ERR_NO_RTP    No root pool found - must match rpool or cpool
         $ERR_NO_CFG    No backup config file found
         $ERR_NO_SDS    No such dataset in root/source pool
-               
+        $(($ERR_NO_SDS+1))    Single/initial send failed
+        $(($ERR_NO_SDS+2))    incremental send failed
 EOH
 }
 
@@ -84,9 +86,9 @@ impPool(){
 }
 
 createSnap(){
-    if ! zfs list -Ht snapshot -o name $1 | grep $_dt ; then
+    if ! zfs list -Ht snapshot -o name $1@$_dt 2>> /dev/null | grep $_dt ; then
         listNonCloneDS $1 | while read _ds; do
-            zfs snapshot $1@$_dt
+            zfs snapshot $_ds@$_dt
         done
     fi
 }
