@@ -3,13 +3,6 @@
 ERR_SNG_SEND=1
 ERR_PRT_SEND=2
 
-_src=$1
-_dst=$2
-_zp=$(echo $_src | cut -d/ -f1 )
-_opts=
-_ropts="-u -o canmount=off -o readonly=on"
-set -x
-
 helptxt(){
     cat << EOH
     $0 [options] SRC-DS TRG-DS
@@ -22,6 +15,7 @@ helptxt(){
 
     Options:
         -h/--help   print this message
+        -l/--last   send only last snapshot per dataset (lexicographically ordered!)
     Exit codes:
         $0 backup completed successfully
         $ERR_SNG_SEND sending of a single/initial snapshot failed
@@ -63,21 +57,37 @@ case $1 in
         helptxt
         exit 0
     ;;
+    -l|--last)
+        _lfl=0
+        shift
+    ;;
 esac
 
-
+_src=$1
+_dst=$2
+_zp=$(echo $_src | cut -d/ -f1 )
+_opts=
+_ropts="-u -o canmount=off -o readonly=on"
+set -x
+. zfs-utils.sh
 _fail=
-for _ds in $(zfs list -rHt filesystem -o name $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
+
+for _ds in $(listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
 
     [ "$(zfs get encryption -Ho value $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
-    for _snp in $(zfs list -Ht snapshot -o name $_ds ); do
-        _trg=$_dst${_snp//$_zp/}
-        if ! zfs list -H -o name $_trg 2>> /dev/null  | grep -q . ; then
-            sendSnap $_snp $_trg $_prt || _fail=$?
-            [ "$_fail" = "0" ] && _fail= || break
-        fi
-        _prt=$_snp
-    done
+    if [ -z "$_lfl" ]; then
+        for _snp in $(listAllSnaps $_ds ); do
+            _trg=$_dst${_snp//$_zp/}
+            if ! zfs list -H -o name $_trg 2>> /dev/null  | grep -q . ; then
+                sendSnap $_snp $_trg $_prt || _fail=$?
+                [ "$_fail" = "0" ] && _fail= || break
+            fi
+            _prt=$_snp
+        done
+    else
+        _snps=( $(lastSnap $_ds 2 ) )
+        sendSnap ${_snps[0]} $_trg ${_snps[1]} || fail=$?
+    fi
     [ -n "$_fail" ] && exit $_fail
 done
