@@ -24,12 +24,13 @@ set -x
 _zp=${1:-$(mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1 )}
 [ -z "$_zp" ] && exit
 _clnm0=
+. zfs-utils.sh
 
 for _ds in $(listNonCloneDS $_zp ); do
     _lst=$(zfs list -Ht snapshot -o name $_ds | tail -1 )
     _snpnm=$(echo $_lst | cut -d@ -f2 )
     [ -z "$_clnm0" ] && _clnm0=$_zp/$_snpnm
-    _clnm=$_clmn0${_ds//$_zp/}
+    _clnm=$_clnm0${_ds//$_zp/}
     if zfs list -Ho name $_clnm 2>> /dev/null | grep -q .; then
         break
     fi
