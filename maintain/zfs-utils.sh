@@ -1,10 +1,12 @@
 #!/bin/bash
 
+#[ -n "$ZFS_UTILS_SH" ] && return
+#export ZFS_UTILS_SH=on
 listAllDSs(){
     zfs get ${2:-encryption} -${4:-""}Ht ${3:-filesystem} -o name,value $1
 }
 getProp(){
-    listAllDSs $1 $2 $3
+    listAllDSs $1 $2 $3 | awk '{print $2}'
 }
 listAllDSnCl(){
     listAllDSs $1 origin filesystem r
