@@ -74,7 +74,7 @@ _fail=
 
 for _ds in $(listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
 
-    [ "$(zfs get encryption -Ho value $_ds )" = "off" ] && _opts=v || _opts=vw
+    [ "$(getProp $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
     if [ -z "$_lfl" ]; then
         for _snp in $(listAllSnaps $_ds ); do
