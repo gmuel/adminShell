@@ -15,6 +15,7 @@ _bck=
 _zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
 _fl=bin/zfsDev.map
 _dt=$(date +%Y-%m-%d )
+_sfl=
 export PATH=$(pwd )/$(dirname $0 ):$PATH
 
 helptxt(){
@@ -84,7 +85,7 @@ impPool(){
 
 createSnap(){
     if ! zfs list -Ht snapshot -o name $1 | grep $_dt ; then
-        zfs get origin -rHt filesystem $1 | awk '{if($2 == "-"){print $1}}' | while read _ds; do
+        listNonCloneDS $1 | while read _ds; do
             zfs snapshot $1@$_dt
         done
     fi
@@ -99,9 +100,15 @@ main(){
             helptxt
             exit
             ;;
+        -c|--complete)
+            _sfl="-l"
+            shift
+            main $@
+            exit $?
+        ;;
         full)
             createSnap $_zp
-            blockingClone.sh
+            blockingClone.sh $_zp
             ;;
         home)
             createSnap $_zp/home
@@ -129,7 +136,7 @@ main(){
         else
             _trg=$_bck
         fi
-        backup-full-zfs.sh $_zp $_trg
+        backup-full-zfs.sh $_sfl $_zp $_trg
         _flg=$?
         if [ $_flg != 0 ]; then
             reportFail $_uuid $_flg
