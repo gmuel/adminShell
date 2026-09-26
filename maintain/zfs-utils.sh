@@ -16,7 +16,7 @@ zut::getProp(){
     zut::listAllDSs $1 $2 $3 | awk '{print $2}'
 }
 zut::listAllDSnCl(){
-    zut::listAllDSs $1 origin filesystem r
+    zut::listByType $1 filesystem r
 }
 zut::listNonCloneDS(){
     zut::listAllDSnCl $1 | awk '{if($2 == "-"){print $1}}'
@@ -25,7 +25,7 @@ zut::listCloneDS(){
     zut::listAllDSnCl $1 | awk '{if($2 != "-"){print $1}}'
 }
 zut::listAllSnaps(){
-    zut::listAllDSs $1 origin snapshot | awk '{print $1}'
+    zut::listByType $1 snapshot
 }
 zut::firstSnap(){
     zut::listAllSnaps $1 | head -${2:-1}
@@ -34,5 +34,5 @@ zut::lastSnap(){
     zut::listAllSnaps $1 | tail -${2:-1}
 }
 zut::exists(){
-    zfs list -Ho name $1 2>/dev/null | grep -q "$1"
+    [ -n "$1" ] && zfs list -Ho name $1 2>/dev/null | grep -q "$1" || return 1
 }
