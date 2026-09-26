@@ -64,14 +64,14 @@ decrypt(){
     if [ -z "$uuid" ] || [ ! -L /dev/disk/by-uuid/$uuid ]; then
         return $ERR_NO_DVC
     fi
-    ky=$2
-    if [ -n "$ky" ]; then
+    local _ky=$2
+    if [ -n "$_ky" ]; then
         if [ ! -L /dev/mapper/luks-$uuid ]; then
-            cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $ky
+            cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $_ky
         fi
-    else
-        return $ERR_NO_KEY
+        return 0
     fi
+    return $ERR_NO_KEY
 }
 
 impPool(){
@@ -86,8 +86,8 @@ impPool(){
 }
 
 createSnap(){
-    if ! zfs list -Ht snapshot -o name $1@$_dt 2>> /dev/null | grep $_dt ; then
-        listNonCloneDS $1 | while read _ds; do
+    if ! zut::exists $1@$_dt ; then
+        zut::listNonCloneDS $1 | while read _ds; do
             zfs snapshot $_ds@$_dt
         done
     fi

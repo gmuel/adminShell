@@ -72,21 +72,21 @@ set -x
 . zfs-utils.sh
 _fail=
 
-for _ds in $(listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
+for _ds in $(zut::listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
 
-    [ "$(getProp $_ds )" = "off" ] && _opts=v || _opts=vw
+    [ "$(zut::getProp $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
     if [ -z "$_lfl" ]; then
-        for _snp in $(listAllSnaps $_ds ); do
+        for _snp in $(zut::listAllSnaps $_ds ); do
             _trg=$_dst${_snp//$_zp/}
-            if ! zfs list -H -o name $_trg 2>> /dev/null  | grep -q . ; then
+            if ! zut::exists $_trg ; then
                 sendSnap $_snp $_trg $_prt || _fail=$?
                 [ "$_fail" = "0" ] && _fail= || break
             fi
             _prt=$_snp
         done
     else
-        _snps=( $(lastSnap $_ds 2 ) )
+        _snps=( $(zut::lastSnap $_ds 2 ) )
         _snp=; _prt=
         if [ -z "${_snps[1]}" ]; then
             _snp=${_snps[0]}
@@ -95,7 +95,7 @@ for _ds in $(listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds 
             _prt=${_snps[0]}
         fi
         _trg=$_dst${_snp//$_src/}
-        if zfs list -Ho name $_trg 2>> /dev/null | grep -q "\S\+"; then
+        if zut::exists $_trg ; then
             continue
         fi
         sendSnap $_snp $_trg $_prt || _fail=$?

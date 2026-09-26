@@ -1,28 +1,38 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-#[ -n "$ZFS_UTILS_SH" ] && return
-#export ZFS_UTILS_SH=on
-listAllDSs(){
+[ -n "$_ZFS_UTILS_SH" ] && return 0
+_ZFS_UTILS_SH=on
+
+# set -Eeuo pipefail
+# shopt -s inherit_errexit 2>/dev/null || true
+
+zut::listAllDSs(){
     zfs get ${2:-encryption} -${4:-""}Ht ${3:-filesystem} -o name,value $1
 }
-getProp(){
-    listAllDSs $1 $2 $3 | awk '{print $2}'
+zut:.listByType(){
+    zut::listAllDSs $1 origin $2 $3 | awk '{print $1}'
 }
-listAllDSnCl(){
-    listAllDSs $1 origin filesystem r
+zut::getProp(){
+    zut::listAllDSs $1 $2 $3 | awk '{print $2}'
 }
-listNonCloneDS(){
-    listAllDSnCl $1 | awk '{if($2 == "-"){print $1}}'
+zut::listAllDSnCl(){
+    zut::listAllDSs $1 origin filesystem r
 }
-listCloneDS(){
-    listAllDSnCl $1 | awk '{if($2 != "-"){print $1}}'
+zut::listNonCloneDS(){
+    zut::listAllDSnCl $1 | awk '{if($2 == "-"){print $1}}'
 }
-listAllSnaps(){
-    listAllDSs $1 origin snapshot | awk '{print $1}'
+zut::listCloneDS(){
+    zut::listAllDSnCl $1 | awk '{if($2 != "-"){print $1}}'
 }
-firstSnap(){
-    listAllSnaps $1 | head -${2:-1}
+zut::listAllSnaps(){
+    zut::listAllDSs $1 origin snapshot | awk '{print $1}'
 }
-lastSnap(){
-    listAllSnaps $1 | tail -${2:-1}
+zut::firstSnap(){
+    zut::listAllSnaps $1 | head -${2:-1}
+}
+zut::lastSnap(){
+    zut::listAllSnaps $1 | tail -${2:-1}
+}
+zut::exists(){
+    zfs list -Ho name $1 2>/dev/null | grep -q "$1"
 }
