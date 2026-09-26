@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-set -x
+set -xeuo pipefail
 
 ERR_NO_DVC=1
 ERR_NO_KEY=2
@@ -17,6 +17,7 @@ _fl=bin/zfsDev.map
 _dt=$(date +%Y-%m-%d )
 _sfl=
 export PATH=$(pwd )/$(dirname $0 ):$PATH
+
 . zfs-utils.sh
 
 helptxt(){
@@ -30,6 +31,10 @@ helptxt(){
     e.g.
     123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  dataset/machine-id     backup-disk01234
     
+    Above example would contain the complete dataset tree from root ZPOOL:
+        backup-disk01234/dataset/machine-id(@/)...
+    An initial send will create the direct parent dataset (root pool top level dataset).
+    
     The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
     
     Arguments
@@ -40,6 +45,7 @@ helptxt(){
                
     Options
             -h/--help   print this message
+            -l/--last   send only last snapshot per dataset
             
     Exit codes:
         0    no problems encountered
@@ -102,7 +108,7 @@ main(){
             helptxt
             exit
             ;;
-        -c|--complete)
+        -l|--last)
             _sfl="-l"
             shift
             main $@

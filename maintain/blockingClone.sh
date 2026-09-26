@@ -46,7 +46,8 @@ case "$1" in
         ;;
 esac
 
-# set -x
+set -euo pipefail
+
 _zp=${1:-$(mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1 )}
 [ -z "$_zp" ] && exit
 _clnm0=
