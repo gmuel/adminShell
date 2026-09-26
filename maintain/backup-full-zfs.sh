@@ -35,9 +35,9 @@ sendSnap(){
     _prt=$3
     local _flg=0
     if [ -n "$_prt" ]; then
-        echo zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
+        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
     else
-        echo zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
+        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
     fi
     case $_flg in
         $ERR_SNG_SEND)
@@ -96,7 +96,7 @@ _dst=$2
 _zp=$(echo $_src | cut -d/ -f1 )
 _opts=
 _ropts="-u -o canmount=off -o readonly=on"
-set -x
+# set -x
 . zfs-utils.sh
 _fail=
 
@@ -109,5 +109,6 @@ for _ds in $(zut::listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read
     else
         sendLast $_ds $_dst
     fi
-    [ -z "$_fail" ] && [ $_fail -ne 0 ] && exit $_fail
+    [ -n "$_fail" ] && [ $_fail -ne 0 ] && exit $_fail
 done
+exit 0
