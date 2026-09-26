@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-set -xeuo pipefail
+set -xo pipefail
 
 ERR_NO_DVC=1
 ERR_NO_KEY=2

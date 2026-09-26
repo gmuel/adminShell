@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-[ -n "$_ZFS_UTILS_SH" ] && return 0
-_ZFS_UTILS_SH=on
+[ -z "$_ZFS_UTILS_SH" ] && _ZFS_UTILS_SH=on || return 0
 
 # set -Eeuo pipefail
 # shopt -s inherit_errexit 2>/dev/null || true
