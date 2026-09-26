@@ -14,7 +14,7 @@ ERR_NO_SDS=7
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
 _fl=bin/zfsDev.map
-_dt=$(date +%Y-%m-%d )
+_dt=$(date +%F )
 _sfl=
 export PATH=$(pwd )/$(dirname $0 ):$PATH
 
@@ -24,7 +24,7 @@ helptxt(){
     cat << EOH
     $0 [OPTIONS] [FLAG]
     
-    Create and/or simply incrementally send all snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
+    Create and/or simply incrementally send recursively snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
     This util requires a LUKS keyfile and a backup config file called zfsDev.map, a four columned file of format:
     
     UUID                    KEYFILE-PATH                            TARGET-DATASET         BACKUP-POOL-NAME
@@ -32,10 +32,14 @@ helptxt(){
     123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  dataset/machine-id     backup-disk01234
     
     Above example would contain the complete dataset tree from root ZPOOL:
-        backup-disk01234/dataset/machine-id(@/)...
+        backup-disk01234/dataset/machine-id@2020-10-11
+        backup-disk01234/dataset/machine-id/dataset01@2020-10-11
+        ...
     An initial send will create the direct parent dataset (root pool top level dataset).
     
     The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
+    All snapshots are named in date format 'YYYY-mm-dd' to ensure proper lexicographical ordering so each pair of snapshots
+    per dataset are in a parent snapshot (former) child snapshot (latter) relation.
     
     Arguments
         FLAG   ''/none   create no snapshot
@@ -45,7 +49,8 @@ helptxt(){
                
     Options
             -h/--help   print this message
-            -l/--last   send only last snapshot per dataset
+            -l/--last   send only last snapshot per dataset, default is sending all snapshots per dataset
+                        requires last snapshots parent to be present in backup ZPOOL
             
     Exit codes:
         0    no problems encountered
