@@ -35,9 +35,9 @@ sendSnap(){
     _prt=$3
     local _flg=0
     if [ -n "$_prt" ]; then
-        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
+        echo zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
     else
-        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
+        echo zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
     fi
     case $_flg in
         $ERR_SNG_SEND)
@@ -51,7 +51,35 @@ sendSnap(){
     esac
     return $_flg
 }
-
+sendAll(){
+    local _ds=$1
+    local _dst=$2
+    local _prt=
+    for _snp in $(zut::listAllSnaps $_ds ); do
+        local _trg=$_dst${_snp//$_zp/}
+        if ! zut::exists $_trg ; then
+            sendSnap $_snp $_trg $_prt || _fail=$?
+        fi
+        _prt=$_snp
+    done
+}
+sendLast(){
+    local _ds=$1
+    local _dst=$2
+    _snps=( $(zut::lastSnap $_ds 2 ) )
+    local _snp=
+    local _prt=
+    if [ -z "${_snps[1]}" ]; then
+        _snp=${_snps[0]}
+    else
+        _snp=${_snps[1]}
+        _prt=${_snps[0]}
+    fi
+    local _trg=$_dst${_snp//$_src/}
+    if ! zut::exists $_trg ; then
+        sendSnap $_snp $_trg $_prt || _fail=$?
+    fi
+}
 case $1 in
     -h/--help)
         helptxt
@@ -77,28 +105,9 @@ for _ds in $(zut::listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read
     [ "$(zut::getProp $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
     if [ -z "$_lfl" ]; then
-        for _snp in $(zut::listAllSnaps $_ds ); do
-            _trg=$_dst${_snp//$_zp/}
-            if ! zut::exists $_trg ; then
-                sendSnap $_snp $_trg $_prt || _fail=$?
-                [ "$_fail" = "0" ] && _fail= || break
-            fi
-            _prt=$_snp
-        done
+        sendAll $_ds $_dst
     else
-        _snps=( $(zut::lastSnap $_ds 2 ) )
-        _snp=; _prt=
-        if [ -z "${_snps[1]}" ]; then
-            _snp=${_snps[0]}
-        else
-            _snp=${_snps[1]}
-            _prt=${_snps[0]}
-        fi
-        _trg=$_dst${_snp//$_src/}
-        if zut::exists $_trg ; then
-            continue
-        fi
-        sendSnap $_snp $_trg $_prt || _fail=$?
+        sendLast $_ds $_dst
     fi
     [ -z "$_fail" ] && [ $_fail -ne 0 ] && exit $_fail
 done

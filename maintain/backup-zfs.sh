@@ -88,7 +88,7 @@ impPool(){
 createSnap(){
     if ! zut::exists $1@$_dt ; then
         zut::listNonCloneDS $1 | while read _ds; do
-            zfs snapshot $_ds@$_dt
+            echo zfs snapshot $_ds@$_dt
         done
     fi
 }
