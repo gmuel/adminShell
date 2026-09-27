@@ -87,7 +87,10 @@ decrypt(){
 
 impPool(){
     local _bck=$1
-    [ -z "$_bck" ] && exit $ERR_NO_IMP
+    if [ -z "$_bck" ]; then
+        _lbck=$(zpool import | awk '{if($1 == "pool:"){print $2}}' | grep "backup" | head -1 )
+        [ -z "$_bck" ] && return $ERR_NO_IMP
+    fi
     zpool list | grep $_bck && return 0
     if zpool import 2>> /dev/null | grep "$_bck" && ! mount | grep /mnt; then
         zpool import -f -R /mnt $_bck
