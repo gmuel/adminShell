@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-set -x
+set -xo pipefail
 
 ERR_NO_DVC=1
 ERR_NO_KEY=2
@@ -12,23 +12,34 @@ ERR_NO_CFG=6
 ERR_NO_SDS=7
 
 _bck=
-_zp=$(zpool get name -Ho value | grep "^\(r\|c\)pool\$" )
+_zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
 _fl=bin/zfsDev.map
-_dt=$(date +%Y-%m-%d )
+_dt=$(date +%F )
+_sfl=
 export PATH=$(pwd )/$(dirname $0 ):$PATH
+
+. zfs-utils.sh
 
 helptxt(){
     cat << EOH
     $0 [OPTIONS] [FLAG]
     
-    Create and/or simply incrementally send all snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
-    This util requires a LUKS keyfile and a backup config file called zfsDev.map, a three columned file of format:
+    Create and/or simply incrementally send recursively snapshots from root ZPOOL to a LUKS encrypted backup ZPOOL
+    This util requires a LUKS keyfile and a backup config file called zfsDev.map, a four columned file of format:
     
-    UUID                    KEYFILE-PATH                            TARGET-DATASET
+    UUID                    KEYFILE-PATH                            TARGET-DATASET         BACKUP-POOL-NAME
     e.g.
-    123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  dataset/machine-id
+    123456-789a-bcde-f12... /etc/cryptsetup-keys.d/luks-123456-...  dataset/machine-id     backup-disk01234
+    
+    Above example would contain the complete dataset tree from root ZPOOL:
+        backup-disk01234/dataset/machine-id@2020-10-11
+        backup-disk01234/dataset/machine-id/dataset01@2020-10-11
+        ...
+    An initial send will create the direct parent dataset (root pool top level dataset).
     
     The first two columns are required, the last one can be left empty (aka the backup pool is the target dataset)
+    All snapshots are named in date format 'YYYY-mm-dd' to ensure proper lexicographical ordering so each pair of snapshots
+    per dataset are in a parent snapshot (former) child snapshot (latter) relation.
     
     Arguments
         FLAG   ''/none   create no snapshot
@@ -38,6 +49,8 @@ helptxt(){
                
     Options
             -h/--help   print this message
+            -l/--last   send only last snapshot per dataset, default is sending all snapshots per dataset
+                        requires last snapshots parent to be present in backup ZPOOL
             
     Exit codes:
         0    no problems encountered
@@ -48,7 +61,8 @@ helptxt(){
         $ERR_NO_RTP    No root pool found - must match rpool or cpool
         $ERR_NO_CFG    No backup config file found
         $ERR_NO_SDS    No such dataset in root/source pool
-               
+        $(($ERR_NO_SDS+1))    Single/initial send failed
+        $(($ERR_NO_SDS+2))    incremental send failed
 EOH
 }
 
@@ -61,20 +75,24 @@ decrypt(){
     if [ -z "$uuid" ] || [ ! -L /dev/disk/by-uuid/$uuid ]; then
         return $ERR_NO_DVC
     fi
-    ky=$(getDvcSpec $uuid 2 )
-    if [ -n "$ky" ]; then
+    local _ky=$2
+    if [ -n "$_ky" ]; then
         if [ ! -L /dev/mapper/luks-$uuid ]; then
-            cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $ky
+            cryptsetup luksOpen /dev/disk/by-uuid/$uuid luks-$uuid --key-file $_ky
         fi
-    else
-        return $ERR_NO_KEY
+        return 0
     fi
+    return $ERR_NO_KEY
 }
 
 impPool(){
-    _bck=$(zpool import | awk '{if($1 == "pool:"){print $2}}' )
-    [ -z "$_bck" ] && exit $ERR_NO_IMP
-    if ! mount | grep /mnt; then
+    local _bck=$1
+    if [ -z "$_bck" ]; then
+        _lbck=$(zpool import | awk '{if($1 == "pool:"){print $2}}' | grep "backup" | head -1 )
+        [ -z "$_bck" ] && return $ERR_NO_IMP
+    fi
+    zpool list | grep $_bck && return 0
+    if zpool import 2>> /dev/null | grep "$_bck" && ! mount | grep /mnt; then
         zpool import -f -R /mnt $_bck
     else
         return $ERR_NO_MNT
@@ -82,8 +100,10 @@ impPool(){
 }
 
 createSnap(){
-    if ! zfs list -Ht snapshot -o name $1 | grep $_dt ; then
-        zfs snapshot -r $1@$_dt
+    if ! zut::exists $1@$_dt ; then
+        zut::listNonCloneDS $1 | while read _ds; do
+            zfs snapshot $_ds@$_dt
+        done
     fi
 }
 reportFail(){
@@ -96,8 +116,15 @@ main(){
             helptxt
             exit
             ;;
+        -l|--last)
+            _sfl="-l"
+            shift
+            main $@
+            exit $?
+        ;;
         full)
             createSnap $_zp
+            blockingClone.sh $_zp
             ;;
         home)
             createSnap $_zp/home
@@ -116,16 +143,16 @@ main(){
     [ -z "$_zp" ] && exit $ERR_NO_RTP
     [ ! -f $_fl ] && exit $ERR_NO_CFG
 
-    for _uuid in $(awk '{print $1}' $_fl ); do
-        decrypt $_uuid || continue
-        impPool || continue
-        _ds=$(getDvcSpec $_uuid 3 )
+    grep -v "^#" $_fl | while read _uuid _kyfl _ds _bck; do
+        decrypt $_uuid $_kyfl || continue
+        impPool $_bck || continue
+        # _ds=$(getDvcSpec $_uuid 3 )
         if [ -n "$_ds" ]; then
             [ "${ds:0:1}" = "/" ] && _trg=$_bck$_ds || _trg=$_bck/$_ds
         else
             _trg=$_bck
         fi
-        backup-full-zfs.sh $_zp $_trg
+        backup-full-zfs.sh $_sfl $_zp $_trg
         _flg=$?
         if [ $_flg != 0 ]; then
             reportFail $_uuid $_flg

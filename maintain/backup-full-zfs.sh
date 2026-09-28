@@ -3,12 +3,6 @@
 ERR_SNG_SEND=1
 ERR_PRT_SEND=2
 
-_src=$1
-_dst=$2
-_zp=$(echo $_src | cut -d/ -f1 )
-_opts=
-_ropts="-u -o canmount=off -o readonly=on"
-
 helptxt(){
     cat << EOH
     $0 [options] SRC-DS TRG-DS
@@ -21,6 +15,7 @@ helptxt(){
 
     Options:
         -h/--help   print this message
+        -l/--last   send only last snapshot per dataset (lexicographically ordered!)
     Exit codes:
         $0 backup completed successfully
         $ERR_SNG_SEND sending of a single/initial snapshot failed
@@ -28,37 +23,92 @@ helptxt(){
 EOH
 }
 failMsg(){
-    [ -z "$4" ] && echo "Sending '$2' failed with status '$3'" && exit $1 \
-        || echo "Sending '$2' of parent '$4' failed with status '$3'" && exit $1
+    if [ -z "$3" ]; then
+        echo "Sending '$2' failed with status '$1'"
+    else
+        echo "Sending '$2' of parent '$3' failed with status '$1'"
+    fi
 }
 sendSnap(){
     _snp=$1
     _trg=$2
     _prt=$3
+    local _flg=0
     if [ -n "$_prt" ]; then
-        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || exit failMsg $ERR_PRT_SEND $_snp $? $_prt
+        zfs send -$_opts -i $_prt $_snp | zfs receive $_ropts $(echo $_trg | cut -d@ -f1 ) || _flg=$ERR_PRT_SEND
     else
-        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || failMsg $ERR_SNG_SEND $_snp $?
+        zfs send -$_opts $_snp | zfs receive $_ropts $_trg || _flg=$ERR_SNG_SEND
+    fi
+    case $_flg in
+        $ERR_SNG_SEND)
+            failMsg $ERR_SNG_SEND $_snp
+            ;;
+        $ERR_PRT_SEND)
+            failMsg $ERR_PRT_SEND $_snp $_prt
+            ;;
+        *)
+            ;;
+    esac
+    return $_flg
+}
+sendAll(){
+    local _ds=$1
+    local _dst=$2
+    local _prt=
+    for _snp in $(zut::listAllSnaps $_ds ); do
+        local _trg=$_dst${_snp//$_zp/}
+        if ! zut::exists $_trg ; then
+            sendSnap $_snp $_trg $_prt || _fail=$?
+        fi
+        _prt=$_snp
+    done
+}
+sendLast(){
+    local _ds=$1
+    local _dst=$2
+    _snps=( $(zut::lastSnap $_ds 2 ) )
+    local _snp=
+    local _prt=
+    if [ -z "${_snps[1]}" ]; then
+        _snp=${_snps[0]}
+    else
+        _snp=${_snps[1]}
+        _prt=${_snps[0]}
+    fi
+    local _trg=$_dst${_snp//$_src/}
+    if ! zut::exists $_trg ; then
+        sendSnap $_snp $_trg $_prt || _fail=$?
     fi
 }
-
 case $1 in
     -h/--help)
         helptxt
         exit 0
     ;;
+    -l|--last)
+        _lfl=0
+        shift
+    ;;
 esac
 
+_src=$1
+_dst=$2
+_zp=$(echo $_src | cut -d/ -f1 )
+_opts=
+_ropts="-u -o canmount=off -o readonly=on"
+# set -x
+. zfs-utils.sh
+_fail=
 
+for _ds in $(zut::listNonCloneDS $_src | grep -v "^$_src\$" ); do # | while read _ds _enc; do  #
 
-zfs get encryption -rHt filesystem -o name,value $_src | while read _ds _enc; do 
-    [ "$_enc" = "off" ] && _opts=v || _opts=vw
+    [ "$(zut::getProp $_ds )" = "off" ] && _opts=v || _opts=vw
     _prt=
-    zfs list -Ht snapshot -o name $_ds | while read _snp; do
-        _trg=$_dst${_snp//$_zp/}
-        if ! zfs list -H -o name $_trg 2>> /dev/null  | grep -q . ; then
-            sendSnap $_snp $_trg $_prt
-        fi
-        _prt=$_snp
-    done
+    if [ -z "$_lfl" ]; then
+        sendAll $_ds $_dst
+    else
+        sendLast $_ds $_dst
+    fi
+    [ -n "$_fail" ] && [ $_fail -ne 0 ] && exit $_fail
 done
+exit 0

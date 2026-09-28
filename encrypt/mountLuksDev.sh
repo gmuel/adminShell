@@ -75,9 +75,9 @@ printHelp(){
     [[ "$1" == "-v" || "$1" ==  "--version" ]] && printVersion $2 && return 0
     return 1  
 }
-devFile=/home/gab2/bin/devMap.txt
-declare -a uuids=( $(cut -d' ' -f1 $devFile ) )
-echo ${uuids[@]}
+devFile= # /home/gab2/bin/devMap.txt
+declare -a uuids= # ( $(cut -d' ' -f1 $devFile ) )
+# echo ${uuids[@]}
 printKeyFile(){
     printHelp "$1" "printKeyFile" && return 0
 #    for i in ${uuids[@]}; do
@@ -251,6 +251,9 @@ printLuksDev(){
 ky_user=
 setKeyUser(){
     ky_user="$1"
+    devFile=/home/$ky_user/bin/devMap.txt
+    uuids=( $(cut -d' ' -f1 $devFile ) )
+    echo ${uuids[@]}
 }
 
 createKey(){
