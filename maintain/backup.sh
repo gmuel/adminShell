@@ -1,7 +1,11 @@
 #!/bin/bash
 
-_fst=$(mount | grep "^\S\+\s\+on\s\+/\s" | awk '{print $5}' )
-export PATH=$(dirname $0 ):$PATH
+_fst=$(mount | awk '{if($3 == "/"){print $5}}' )
+
+_dr=$(cd $(dirname $0); pwd )
+if ! echo $PATH | grep -q $_dr; then
+	export PATH=$_dr:$PATH
+fi
 
 case "$_fst" in
 	btrfs)
