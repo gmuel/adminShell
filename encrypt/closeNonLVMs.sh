@@ -17,5 +17,17 @@ case "$1" in
 esac
 
 ls /dev/mapper/luks-* | while read _lx; do
-	blkid -s TYPE -o value $_lx | grep -v -i lvm && mount | grep -v -q $_lx && cryptdisks_stop $(basename $_lx )
+    _lxfl=$(basename $_lx )
+    _fstp=$(blkid -s TYPE -o value $_lx )
+    case "$_fstp" in
+        LVM2_member)
+            continue
+            ;;
+        zfs_member)
+            zpool import | grep $_lxfl && cryptdisks_stop $_lxfl
+            ;;
+        *)
+            mount | grep -v -q $_lx && cryptdisks_stop $_lxfl
+            ;;
+    esac
 done
