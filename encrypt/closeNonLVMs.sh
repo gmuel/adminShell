@@ -4,8 +4,8 @@ helptxt(){
  $0 [options]
  Close/encrypt all luks devices matching luks-UUID pattern
  found in /dev/mapper
- Only if filesystem isn't an LVM nor is device mapped block in use (mounted)
- this will succeed. All other DMBs are ignored.
+ Only if filesystem isn't an LVM nor is device mapped block in use (mounted 
+ or an imported pool) this will succeed. All other DMBs are ignored.
 
    Options: -h/--help print this message
 
