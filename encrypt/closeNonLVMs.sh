@@ -24,7 +24,7 @@ ls /dev/mapper/luks-* | while read _lx; do
             continue
             ;;
         zfs_member)
-            zpool import | grep $_lxfl && cryptdisks_stop $_lxfl
+            zpool status | grep -q $_lxfl || cryptdisks_stop $_lxfl
             ;;
         *)
             mount | grep -v -q $_lx && cryptdisks_stop $_lxfl
