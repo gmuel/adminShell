@@ -55,14 +55,14 @@ esac
 
 set -xo pipefail
 
+. zfs-utils.sh
 _zp=${1:-$(zut::getRootPool )}
 [ -z "$_zp" ] && exit
 _sz=${2:-1}
 [ $_sz -gt 3 ] && _sz=3
 _zp0=$(echo $_zp | cut -d/ -f2 )
-[ -z "$_zp0" ] && _flg=$_FLG || _flg=$(basename $_zp )
+[ "$_zp0" = "$_zp" ] && _flg=$_FLG || _flg=$(basename $_zp )
 _clnm0=
-. zfs-utils.sh
 _snpnm=
 _lsts=( $(zut::lastSnap $_zp $_sz ) )
 _snpnm=$(_str=; for i in ${_lsts[@]}; do _tmp=$(echo $i | cut -d@ -f2 ); [ -z "$_str" ] && _str=$_tmp || _str="$_str\|$_tmp"; done; echo $_str )
@@ -75,7 +75,7 @@ done || exit 1
 
 for _snp in $(zut::listAllSnaps $_zp | grep -v "\($_snpnm\)" ); do
     if zut::hasHold $_snp $_flg ; then
-        echo zfs release -r $_flg $_snp # $_clnm
+        zfs release -r $_flg $_snp # $_clnm
     fi
 done || exit 2
 
