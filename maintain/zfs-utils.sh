@@ -38,9 +38,9 @@ zut::exists(){
 zut::hasHold(){
     _tg=${2:-$1}
     if [ "$_tg" = "$1" ]; then
-        zfs holds $1 -H 2>> /dev/null | grep "${2:-$1}"
+        zfs holds $1 -H 2>> /dev/null | grep -q "$1"
     else
-        zfs holds $1 -H 2>> /dev/null | awk "{if(\$2 == \"$_tg\"){print \$0}}" | grep "$1"
+        zfs holds $1 -H 2>> /dev/null | awk "{if(\$2 == \"$_tg\"){print \$0}}" | grep -q "$1"
     fi
 }
 zut::listNoHoldSnaps(){
