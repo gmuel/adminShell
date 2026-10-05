@@ -35,3 +35,17 @@ zut::lastSnap(){
 zut::exists(){
     [ -n "$1" ] && zfs list -Ho name $1 2>/dev/null | grep -q "$1" || return 1
 }
+zut::hasHold(){
+    zfs holds $1 -H 2>> /dev/null | grep "${2:-$1}"
+}
+zut::listNoHoldSnaps(){
+    for _snp in $(zut::listAllSnaps $1 ); do
+        if ! zut::hasHold $_snp ; then
+            echo $_snp
+        fi
+    done
+}
+zut::getRootPool(){
+    mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1
+}
+
