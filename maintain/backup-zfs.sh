@@ -124,10 +124,12 @@ main(){
         ;;
         full)
             createSnap $_zp
-            blockingClone.sh $_zp
+            # blockingClone.sh $_zp
+            lastHold.sh $_zp
             ;;
         home)
             createSnap $_zp/home
+            lastHold.sh $_zp/home 2
             ;;
         ''|none)
             ;;
@@ -135,6 +137,7 @@ main(){
             _ds=$(zfs list -rHo name $_zp | grep $1 )
             if [ -n "$_ds" ]; then
                 createSnap $_ds
+                lastHold.sh $_ds
             else
                 exit $ERR_NO_SDS
             fi
