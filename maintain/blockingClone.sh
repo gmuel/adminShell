@@ -48,10 +48,10 @@ esac
 
 set -o pipefail
 
-_zp=${1:-$(mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1 )}
+. zfs-utils.sh
+_zp=${1:-$(zut::getRootPool )}
 [ -z "$_zp" ] && exit
 _clnm0=
-. zfs-utils.sh
 
 for _ds in $(zut::listNonCloneDS $_zp ); do
     _lst=$(zut::lastSnap $_ds | tail -1 )
