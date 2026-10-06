@@ -50,7 +50,10 @@ zut::listNoHoldSnaps(){
         fi
     done
 }
+zut::getRootDS(){
+    mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}'
+}
 zut::getRootPool(){
-    mount | awk '{if($3 == "/" && $5 == "zfs"){print $1}}' | cut -d/ -f1
+    zut::getRootDS | cut -d/ -f1
 }
 
