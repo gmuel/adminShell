@@ -7,17 +7,39 @@ _rt=
 _fl=
 . zfs-utils.sh
 set -x
+helptxt(){
+    cat << EOH
+
+    $0 [options] OPT-FLAGS [MOUNT-POINT]
+
+    Create, activate or revert bootable environment (BE):
+    Relies on blockingClone.sh clones created, adjusts its local fstab and dracut kernel cmdline config
+    parameters to allow booting into the clones environment.
+
+    OPT-FLAGS
+        create/setup        create a BE, note this will run blockingClone.sh 'POOL-NAME'
+        activate            activate BE, create UKI to boot into BE, this will
+                            change mountpoints for non-legacy root datasets(!)
+        revert/deactivate   change mountpoints where needed
+
+    MOUNT-POINT             mountpoint for processing, defaults to /mnt
+
+    Options:
+        -h/--help           print this message
+EOH
+}
 
 setMachId(){
     uuidgen | sed "s|\-||g" > $_mnt/etc/machine-id
 }
 prepChr(){
-    for i in /{dev{,/{pts,shm}},proc,run,sys{,firmware/efi/efivars}}; do
+    for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
         _mpt=$_mnt$i
-        if ! mount | grep ; then
+        if ! mount | grep $_mpt ; then
             mount --rbind $i $_mpt
         fi
     done
+    return 0
 }
 mountDS(){
     if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
@@ -27,13 +49,18 @@ mountDS(){
         mount -t zfs $1 $2
         [ -z "$_fl" ] && _fl=on
     fi
+    return 0
 }
-mountRootUSR(){
+initDSs(){
     _rt0=$(zut::getRootDS )
+    _zp=$(echo $_rt0 | cut -d/ -f1 )
     [ -z "$_rt0" ] && return 1
     _rt=$(basename $_rt0 )
     _rt=$(zut::listCloneDS $_zp | grep "$_rt" )
     [ -z "$_rt" ] && return 2
+}
+mountRootUSR(){
+    initDSs
     mountDS $_rt $_mnt
     _ds=$(zut::listCloneDS $_zp | grep "/usr\$" )
     [ -z "$_ds" ] && return 3
@@ -63,7 +90,6 @@ adjustMnts(){
 }
 
 createBE(){
-    _zp=$(zut::getRootPool )
     mountRootUSR || return $?
     [ "$(cat /etc/machine-id )" != "$(cat $_mnt/etc/machine-id )" ] && return 0
     _bs=$(dirname $_ds )
@@ -76,16 +102,40 @@ initBE(){
     blockingClone.sh $_zp || return $?
     createBE
 }
+filterKver(){
+    ls $_mnt/boot | grep vmlinuz- | grep -v 79 | sed "s|vmlinuz\-||g" | tail -1
+}
+swapMntPt(){
+    if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
+        zfs set -u mountpoint=/ $2
+        zfs set -u mountpoint=legacy $1
+    fi
+
+}
+resetRtDS(){
+    swapMntPt $_rt0 $_rt
+}
+revert(){
+    initDSs
+    swapMntPt $_rt $_rt0
+    mountDS $_rt $_mnt
+    for _efi in $(find /boot/efi/EFI/Linux -type f -name "linux-*-$(cat $_mnt/etc/machine-id ).efi" 2>> /dev/null ); do
+        rm -vf $_efi
+    done
+}
 activateBE(){
+    mountRootUSR || return $?
     prepChr
+    umount /boot/efi
     chroot $_mnt mount -a
-    chroot $_mnt dracut -vfp --regenerate-all
-#    zfs set -u mountpoint=/ $_rt
+    chroot $_mnt dracut -vf --kver $(filterKver )
+    resetRtDS
     
 }
 main(){
     case "$1" in
         -h|--help)
+            helptxt
             exit 0
             ;;
         setup|create)
@@ -93,6 +143,13 @@ main(){
             ;;
         activate)
             activateBE
+            ;;
+        deactivate|revert)
+            revert
+            ;;
+        *)
+            echo "unknown operation '$1' - aborting..."
+            exit 10
             ;;
     esac
     [ -n "$_fl" ] && umount -R -l $_mnt
