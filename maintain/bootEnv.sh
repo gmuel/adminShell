@@ -53,8 +53,8 @@ mountDS(){
 }
 initDSs(){
     _rt0=$(zut::getRootDS )
-    _zp=$(echo $_rt0 | cut -d/ -f1 )
     [ -z "$_rt0" ] && return 1
+    _zp=$(echo $_rt0 | cut -d/ -f1 )
     _rt=$(basename $_rt0 )
     _rt=$(zut::listCloneDS $_zp | grep "$_rt" )
     [ -z "$_rt" ] && return 2
@@ -69,7 +69,7 @@ mountRootUSR(){
 adjustFS(){
     _fl=$_mnt/etc/fstab
 #    cp $_fl{,.1}
-    for i in $(grep -v '^#' $_fl | grep zfs | awk '{print $1}'); do
+    for i in $(grep -v '^#' $_fl | awk '{if($3 == "zfs"){print $1}}'); do
         sed -i "s|^$i\s|$1${i//$_zp/}\t|g" $_fl # | grep $1
     done
 #    systemctl daemon-reload
