@@ -11,14 +11,16 @@ btrs(){
 }
 
 listBtrs(){
-	btrs list $1
+	btrs list $@
 }
 
 awkN(){
     awk "{print \$$1}"
 }
 
-
+lastName(){
+    sed "s|.\+/\([^/]\+\)\$|\1|g"
+}
 
 listByPat(){
 	listBtrs $1 | grep "$2"
@@ -33,6 +35,9 @@ get2ndCol(){
 
 get9thCol(){
 	awkN 9
+}
+get14thCol(){
+    awkN 14
 }
 
 getLastByLevel(){
