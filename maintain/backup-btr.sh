@@ -76,7 +76,7 @@ allUUIDs(){
 
 getBUVolId(){
     if [ -z "$backvol" ]; then
-        sys_fl=$(inxi -M | grep product | sed "s=.\+product\: \(\(MacBookAir\|Standard\|XPS\|HP\)[^\:]\+\)\sv\:.\+=\1=g" )
+        sys_fl=$(awk "{if(\$1 == \"$UUID\"){print \$4}}" $(dirname $0 )/devMap.txt )
         case "$sys_fl" in
         "Standard"|"VirtualBox")
 		    backvol=4
@@ -125,22 +125,18 @@ mountDvc(){
         return $ERR_MOU
     fi
 }
+
 getParent(){
-    lvl_id=$(listByPat $dr "\s$ssvl\$" | get2ndCol | tail -1 )
-    echo $lvl_id
-    if [ -n "$lvl_id" ]; then
-        vol=$(listByLevel $dr $lvl_id | get9thCol | tail -1 | sed "s=\(@[^\S/]*/\)\{0,\}==g" )
-        echo $vol
-        if [ -n "$vol" ] && listByPat $vol_str "\s$vol\$" | grep "\S\+" ; then
-            parent_vol=$vol
-        fi
+    _vol=$(listBtrs -o -s $dr$ssvl | get14thCol | tail -1  | lastName )
+    if listBtrs -o -s $vol_str | grep -q "${vol_str//'/'/}/$_vol" ; then
+        parent_vol=$_vol
     fi
 }
 getChild(){
-    listByPat $vol_str "\s@$dt_str\$" | get9thCol
+    listBtrs -o -s $vol_str | get14thCol | grep "/@$dt_str\$" | lastName
 }
 getTS(){
-    date +%Y%m%d # _%H%M
+    date +%F # _%H%M
 }
 findDevice(){
     dv=
@@ -183,7 +179,7 @@ sendSnap(){
 		    ext=$ERR_SND
 		    fl=fail
 	    fi
-    elif [[ -z "$prn_vol" && -n "$chl_vol" ]]; then
+    elif [[ -z "$prn_vol" && -n "$child_vol" ]]; then
         echo "btr send $chl_vol | btr receive $dr$ssvl"
         if btr send "$chl_vol" | btr receive $dr$ssvl; then
 		    echo "Initial vol: \"$chl_vol\" sent to '$dr$ssvl'"
@@ -289,7 +285,7 @@ main(){
 #    fi
     initChild || return $?
     
-    [ -n "$parent_vol" ] && echo Found parent volume "$vol_str$parent_vol" && prn_vol="$vol_str$parent_vol"
+    [ -n "$parent_vol" ] && prn_vol="$vol_str$parent_vol" && echo Found parent volume "$prn_vol"
     chl_vol="$vol_str$child_vol"
 #    fl=
     ext=${ext:-0}
