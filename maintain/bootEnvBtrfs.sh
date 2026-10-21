@@ -47,7 +47,7 @@ _hm=$(getBtrfsMnts /home )
 mount -t btrfs $_rt /mnt
 [ -n "$_hm" ] && mount -t btrfs $_hm /mnt/@/mnt
 
-for i in $(mount | awk '{if($5 == "btrfs"){print $3}}' | grep -v /mnt ); do
+for i in $(mount | awk '{if($5 == "btrfs"){print $3}}' | grep -v "/m\(nt\|edia\)" ); do
     if [ -z "$_snp" ]; then
         _snp=$(btrfs sub list -o -s $i | awk '{print $14}' | tail -1 );
         _snp=$(basename $_snp )
