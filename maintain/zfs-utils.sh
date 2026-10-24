@@ -57,7 +57,7 @@ zut::getRootPool(){
     zut::getRootDS | cut -d/ -f1
 }
 zut::isOri(){
-    if echo $1 | grep "/"; then
+    if echo $1 | grep -q "/"; then
         _zp=$(echo $1 | cut -d/ -f1 )
     else
         _zp=$(echo $1 | cut -d@ -f1 )
