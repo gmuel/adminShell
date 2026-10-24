@@ -56,4 +56,11 @@ zut::getRootDS(){
 zut::getRootPool(){
     zut::getRootDS | cut -d/ -f1
 }
-
+zut::isOri(){
+    if echo $1 | grep "/"; then
+        _zp=$(echo $1 | cut -d/ -f1 )
+    else
+        _zp=$(echo $1 | cut -d@ -f1 )
+    fi
+    zut::listAllDSs $_zp origin filesystem r | grep -q "\s$1\$"
+}
