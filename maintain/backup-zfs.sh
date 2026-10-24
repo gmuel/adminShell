@@ -124,8 +124,9 @@ main(){
         ;;
         full)
             createSnap $_zp
-            # blockingClone.sh $_zp
             lastHold.sh $_zp
+            blockingClone.sh $_zp
+            bootEnv.sh create
             ;;
         home)
             createSnap $_zp/home
