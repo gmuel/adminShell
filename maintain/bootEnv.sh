@@ -5,6 +5,7 @@ _ds=
 _rt0=
 _rt=
 _fl=
+_zp=
 . zfs-utils.sh
 set -x
 helptxt(){
@@ -21,6 +22,7 @@ helptxt(){
         activate            activate BE, create UKI to boot into BE, this will
                             change mountpoints for non-legacy root datasets(!)
         revert/deactivate   change mountpoints where needed
+        delete/remove       remove BE
 
     MOUNT-POINT             mountpoint for processing, defaults to /mnt
 
@@ -146,6 +148,11 @@ main(){
             ;;
         deactivate|revert)
             revert
+            ;;
+        delete|remove)
+            revert
+            _cl=$(zut::listCloneDS $_zp | head -1 )
+            [ -n "$_cl" ] && zfs destroy -r $_cl
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
