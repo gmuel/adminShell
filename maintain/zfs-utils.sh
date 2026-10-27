@@ -12,7 +12,7 @@ zut::listByType(){
     zut::listAllDSs $1 origin $2 $3
 }
 zut::getProp(){
-    zut::listAllDSs $1 $2 $3 | awk '{print $2}'
+    zut::listAllDSs $1 $2 $3 $4 | awk '{print $2}'
 }
 zut::listAllDSnCl(){
     zut::listByType $1 filesystem r
@@ -35,12 +35,26 @@ zut::lastSnap(){
 zut::exists(){
     [ -n "$1" ] && zfs list -Ho name $1 2>/dev/null | grep -q "$1" || return 1
 }
+zut::poolName(){
+    if echo $1 | grep -q "/"; then
+        echo $1 | cut -d/ -f1
+    elif echo $1 | grep -q "@"; then
+        echo $1 | cut -d@ -f1
+    elif echo $1 | grep -q "#"; then
+        echo $1 | cut -d'#' -f1
+    else
+        echo $1
+    fi
+}
+zut::getHold(){
+    zfs holds $1 -H
+}
 zut::hasHold(){
     _tg=${2:-$1}
     if [ "$_tg" = "$1" ]; then
-        zfs holds $1 -H 2>> /dev/null | grep -q "$1"
+        zut::getHold $1 | grep -q "$1"
     else
-        zfs holds $1 -H 2>> /dev/null | awk "{if(\$2 == \"$_tg\"){print \$0}}" | grep -q "$1"
+        zut::getHold $1 | awk "{if(\$2 == \"$_tg\"){print \$0}}" | grep -q "$1"
     fi
 }
 zut::listNoHoldSnaps(){
@@ -56,11 +70,10 @@ zut::getRootDS(){
 zut::getRootPool(){
     zut::getRootDS | cut -d/ -f1
 }
-zut::isOri(){
-    if echo $1 | grep -q "/"; then
-        _zp=$(echo $1 | cut -d/ -f1 )
-    else
-        _zp=$(echo $1 | cut -d@ -f1 )
-    fi
-    zut::listAllDSs $_zp origin filesystem r | grep -q "\s$1\$"
+zut::getClone(){
+    _zp=$(zut::poolName $1 )
+    zut::listAllDSs $_zp origin filesystem r | awk "{if(\$2 == \"$1\"){print \$1}}"
+}
+zut::hasClone(){
+    [ -n "$(zut::getClone $1 )" ]
 }
