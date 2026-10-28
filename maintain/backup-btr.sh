@@ -233,12 +233,21 @@ nextStep(){
 #fi
 #echo "backup subvol suffix found: $backvol"
 
+getMounts(){
+    mount | awk '{if($5 == "btrfs"){print $3}}' | grep -v "/\(m\(nt\|edia\)\|swap\)"
+}
+
 main(){
     vol_str=$1
     local vol_str0=$1
     case "$vol_str" in 
     "-h" |"--help" )
         helptext && return 0
+        ;;
+    "full")
+        main $(getMounts )
+        bootEnvBtrfs.sh
+        return $?
         ;;
     '')
         vol_str=/home
