@@ -53,13 +53,17 @@ _zp=${1:-$(zut::getRootPool )}
 [ -z "$_zp" ] && exit
 _clnm0=
 
-for _ds in $(zut::listNonCloneDS $_zp ); do
+for _ds in $(zut::listNonCloneDS $_zp | grep "$_zp/\(ROOT/[^/]\+\|usr\|var\)\$" ); do
     _lst=$(zut::lastSnap $_ds | tail -1 )
     _snpnm=$(echo $_lst | cut -d@ -f2 )
     [ -z "$_clnm0" ] && _clnm0=$_zp/$_snpnm
     _clnm=$_clnm0${_ds//$_zp/}
     if zut::exists $_clnm ; then
         break
+    fi
+    _pr=$(dirname $_clnm )
+    if ! zfs list -Ho name $_zp | grep "$_pr\$"; then
+        zfs create -p $_pr
     fi
     zfs clone $_lst $_clnm
 done || exit 1
