@@ -45,15 +45,20 @@ prepChr(){
 }
 mountDS(){
     if ! mount | grep $1; then
-        _mpt=$(zfs get mountpoint -Ho value $1 )
+        _ori=$(zut::getProp $1 origin | cut -d@ -f1 )
+        [ -z "$_ori" ] && return 0
+        _mpt=$(zfs get mountpoint -Ho value $_ori )
         case "$_mpt" in
             legacy)
+                zfs set -u mountpoint=$_mpt $1
                 mount -t zfs $1 $2
                 ;;
             none)
                 return 0
                 ;;
             *)
+                [ "$_mpt" = "/" ] && zfs set -u mountpoint=/mnt $1 || zfs set -u mountpoint=/mnt$_mnt $1
+                zfs set -u canmount=noauto $1
                 zfs mount $1
                 ;;
         esac
