@@ -44,11 +44,19 @@ prepChr(){
     return 0
 }
 mountDS(){
-    if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
-        zfs set mountpoint=legacy $1
-    fi
     if ! mount | grep $1; then
-        mount -t zfs $1 $2
+        _mpt=$(zfs get mountpoint -Ho value $1 )
+        case "$_mpt" in
+            legacy)
+                mount -t zfs $1 $2
+                ;;
+            none)
+                return 0
+                ;;
+            *)
+                zfs mount $1
+                ;;
+        esac
         [ -z "$_fl" ] && _fl=on
     fi
     return 0
@@ -60,9 +68,10 @@ initDSs(){
     _rt=$(basename $_rt0 )
     _rt=$(zut::listCloneDS $_zp | grep "$_rt" )
     [ -z "$_rt" ] && return 2
+    return 0
 }
 mountRootUSR(){
-    initDSs
+    initDSs || return $?
     mountDS $_rt $_mnt
     _ds=$(zut::listCloneDS $_zp | grep "/usr\$" )
     [ -z "$_ds" ] && return 3
@@ -71,7 +80,7 @@ mountRootUSR(){
 adjustFS(){
     _fl=$_mnt/etc/fstab
 #    cp $_fl{,.1}
-    for i in $(grep -v '^#' $_fl | awk '{if($3 == "zfs"){print $1}}'); do
+    for i in $(grep -v '^#' $_fl | awk '{if($3 == "zfs"){print $1}}' | grep "rpool/\(ROOT/[^/]\+\|usr\|var\)\$"); do
         sed -i "s|^$i\s|$1${i//$_zp/}\t|g" $_fl # | grep $1
     done
 #    systemctl daemon-reload
@@ -84,9 +93,12 @@ adjustDrct(){
     fi
 }
 adjustMnts(){
-    for i in $(zut::listCloneDS $1 ); do
-        if grep -q "^[^#\s]\+$(basename $i )\s" /etc/fstab && [ "$(zut::getProp $i mountpoint )" != "legacy" ]; then
-            zfs set mountpoint=legacy $i
+    for i in $(zut::listCloneDS $1 grep "rpool\(/[^/]\+\)/\(ROOT/[^/]\+\|usr\|var\)\$" ); do
+        _ds=$(zut::getProp $i origin | cut -d@ -f1 )
+        if [ -n "$_ds" ]; then
+            _mpt=$(zfs get mountpoint -Ho value $_ds )
+            [ "$_mpt" = "/" ] && zfs set -u mountpoint=/mnt $i || zfs set -u mountpoint=$_mpt $i
+            zfs set -u canmount=$(zfs get canmount -Ho value $_ds ) $i
         fi
     done
 }
@@ -109,8 +121,8 @@ filterKver(){
 }
 swapMntPt(){
     if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
-        zfs set -u mountpoint=/ $2
-        zfs set -u mountpoint=legacy $1
+        echo zfs set -u mountpoint=/ $2
+        # echo zfs set -u mountpoint=legacy $1
     fi
 
 }
@@ -119,7 +131,6 @@ resetRtDS(){
 }
 revert(){
     initDSs
-    swapMntPt $_rt $_rt0
     mountDS $_rt $_mnt
     for _efi in $(find /boot/efi/EFI/Linux -type f -name "linux-*-$(cat $_mnt/etc/machine-id ).efi" 2>> /dev/null ); do
         rm -vf $_efi
@@ -133,6 +144,13 @@ activateBE(){
     chroot $_mnt dracut -vf --kver $(filterKver )
     resetRtDS
     
+}
+destroyParents(){
+    [ -z "$2" ] && return 0
+    if [ "$1" != "$2" ]; then
+        [ "$(dirname $2 )" = "$1" ] && zfs destroy -r $2 && return 0
+        destroyParents $1 $(dirname $2 )
+    fi
 }
 main(){
     case "$1" in
@@ -152,7 +170,7 @@ main(){
         delete|remove)
             revert
             _cl=$(zut::listCloneDS $_zp | head -1 )
-            [ -n "$_cl" ] && zfs destroy -r $_cl
+            destroyParents $_zp $_cl
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
