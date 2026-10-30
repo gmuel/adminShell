@@ -92,5 +92,6 @@ for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
     mount --rbind {,/mnt}$i
 done
 chroot /mnt mount -a
-chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $(uname -r )
+_kver=$(ls /mnt/lib/modules | tail -1 )
+chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
 umount -R -l /mnt
