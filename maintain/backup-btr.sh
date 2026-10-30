@@ -2,7 +2,7 @@
 
 helptext(){
     cat << EOH
-        $0 [options] [arg]
+        $0 [options] [arg|full]
                             create backup arg/@date_string for
                             any mount btrfs fs
 
@@ -13,7 +13,9 @@ helptext(){
         
         options: -h/--help print this message
         
-        arg - any btrfs mount point (defaults to /home/ )
+        arg - any btrfs mount point (defaults to /home/ ), or
+              for full system backup, use 'full':
+              $0 full # create full backup except '/mnt, /media or /swap'
         exit codes:
             0  - backup succeeded
             $ERR_PAR - decryption/mount of destination device failed
@@ -245,7 +247,7 @@ main(){
         helptext && return 0
         ;;
     "full")
-        main $(getMounts )
+        main $(getMounts ) || return $?
         bootEnvBtrfs.sh
         return $?
         ;;
