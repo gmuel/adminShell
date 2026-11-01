@@ -37,7 +37,7 @@ EOH
 . mountLuksDev.sh >> /dev/null
 
 vol_str=
-mp_fl=/home/$ky_user/bin/backup.map
+mp_fl=/home/$ky_user/bin/devMap.txt
 
 
 dt_str= # date string - name of backup snapshot to create
@@ -70,7 +70,7 @@ ERR_NOD=11
 
 allUUIDs(){
 	str=
-	for i in $(cut -d' ' -f1 $mp_fl ); do
+	for i in $(awk '{print $1}' $mp_fl ); do
 		[ -z "$str" ] && str=$i || str="$str\|$i"
 	done
 	echo $str
@@ -118,8 +118,9 @@ mountDvc(){
     if [ -z "$(mount | grep "\($dvc0\|luks-$UUID\)" )" ]; then
         if [ -z "$BACK_UP_REC_CALL" ] && [ ! -L /dev/mapper/luks-$UUID ]; then
             mountLuksDev $dvc0 gab2 $sbvl
-        else
+        elif [ -z "$BACK_UP_REC_CALL" ] ; then
             echo mountTemp gab2 /dev/mapper/luks-$UUID $dvc $sbvl rw
+            mountTemp gab2 /dev/mapper/luks-$UUID $dvc $sbvl rw
         fi
     fi
     if [ -z "$(mount | grep "\($dvc0\|luks-$UUID\)" )" ]; then
@@ -146,9 +147,9 @@ findDevice(){
     dvc=${dvc:-''}
     echo testing device $dvc
     [ -n "$dvc" ] && return 0
-    for i in $(awk '{print $1}' $mp_fl ); do
+    for i in $(grep -v '^#' $mp_fl | awk '{print $1}' ); do
         dv=$(blkid -o device -t UUID=$i )
-        [ -n "$dv" ] && dvc=$dv && return 0
+        [ -n "$dv" ] && dvc=$dv && UUID=$i && return 0
     done
     echo no backup destination device found - exiting
     return $ERR_NOD
@@ -247,6 +248,7 @@ main(){
         helptext && return 0
         ;;
     "full")
+        set -x
         main $(getMounts ) || return $?
         bootEnvBtrfs.sh
         return $?
@@ -258,7 +260,7 @@ main(){
 
     len=${#vol_str}
 
-    if [ ! -d $vol_str ] || ! mount | grep btrfs | awk '{print $3}' | grep $vol_str; then
+    if [ ! -d $vol_str ] || ! mount | grep btrfs | awk '{print $3}' | grep -q $vol_str; then
         echo no such mount point $vol_str
         return $ERR_VOL
     fi
@@ -266,7 +268,7 @@ main(){
     [[ "${vol_str:$(($len-1))}" != "/" ]] && vol_str="$vol_str/"
 
     cd $vol_str
-    pwd
+    # pwd
     if ! findDevice ; then
         [ $? = $ERR_NOD ] && echo no device found - aborting && return $ERR_NOD
         return $ERR_MAP
@@ -274,7 +276,7 @@ main(){
     echo $dvc used as backup
     UUID=${UUID:-$(blkid -s UUID -o value $dvc )}
     echo having UUID $UUID
-    sbvl=${sbvl:-"$(grep $UUID $mp_fl | get2ndCol )"}
+    sbvl=${sbvl:-"$(awk "{if(\$1 == \"$UUID\"){print \$3}}" $mp_fl )"}
     dt_str=${dt_str:-$(getTS )}
     ssvl=@home
     findVol 
