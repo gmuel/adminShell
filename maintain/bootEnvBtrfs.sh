@@ -62,10 +62,10 @@ for i in $(mount | awk '{if($5 == "btrfs"){print $3}}' | grep -v "/m\(nt\|edia\)
     _src=$(getBtrfsMnts $i )
     case "$_src" in
         "$_rt" )
-            createSVolSnap /mnt/$_snp $i/$_snp /mnt/$_snp/$(getBtrfsFlgs $i ) $_snp
+            createSVolSnap /mnt/$_snp $i/$_snp /mnt/$_snp/$(getBtrfsFlgs $i ) $_snp || exit 0
             ;;
         "$_hm" )
-            createSVolSnap /mnt/@/mnt/$_snp $i/$_snp /mnt/@/mnt/$_snp/$(getBtrfsFlgs $i ) $_snp
+            createSVolSnap /mnt/@/mnt/$_snp $i/$_snp /mnt/@/mnt/$_snp/$(getBtrfsFlgs $i ) $_snp || exit 0
             ;;
     esac
 done
