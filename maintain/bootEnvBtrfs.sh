@@ -75,7 +75,7 @@ umount -R -l /mnt
 mount -t btrfs -o rw,subvol=$_snp/$(getBtrfsFlgs / ) $_rt /mnt
 _usr=$(getBtrfsFlgs /usr )
 if [ -n "$_usr" ]; then
-    echo mount -t btrfs -o rw,subvol=$_snp/$_usr $(getBtrfsMnts /usr ) /mnt/usr
+    mount -t btrfs -o rw,subvol=$_snp/$_usr $(getBtrfsMnts /usr ) /mnt/usr
 fi
 
 if ! grep $_snp /mnt/etc/fstab; then
@@ -92,6 +92,19 @@ for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
     mount --rbind {,/mnt}$i
 done
 chroot /mnt mount -a
-_kver=$(ls /mnt/lib/modules | tail -1 )
-chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
+_kver=$(uname -r )
+[ ! -d /mnt/lib/modules/$_kver ] && _kver=$(ls /mnt/lib/modules | tail -1 )
+
+if [ -n "$(which dracut )" ]; then
+    chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
+else
+    if [ ! -f /etc/grub.d/40-custom.1 ]; then
+	    cp /etc/grub.d/40-custom{,}.1 # we keep a copy for future update-grub calls
+    else
+	    # in case of a new update-grub...
+	    rm /etc/grub.d/40-custom
+	    cp /etc/grub.d/40-custom{.1,}
+    fi
+    awk -v RS=} "\$0 ~ /menuentry[^{]+$(uname -r )[^{]+{/{print \$0\"}\"}" /boot/grub/grub.cfg | grep -v submenu | sed "s|\(subvol=/\?\)\([^\s]\+\)|\1@$_dt/\2|g" >> /etc/grub.d/40_custom
+fi
 umount -R -l /mnt
