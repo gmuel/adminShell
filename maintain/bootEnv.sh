@@ -34,11 +34,25 @@ EOH
 setMachId(){
     uuidgen | sed "s|\-||g" > $_mnt/etc/machine-id
 }
-prepChr(){
+baseSys(){
     for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
+        echo $i
+    done
+}
+prepChr(){
+    for i in $(baseSys ); do
         _mpt=$_mnt$i
-        if ! mount | grep $_mpt ; then
+        if ! mount | grep -q $_mpt ; then
             mount --rbind $i $_mpt
+        fi
+    done
+    return 0
+}
+postChr(){
+    for i in $(baseSys | sort -r ); do
+        _mpt=$_mnt$i
+        if mount | grep -q $_mpt ; then
+            umount -l $_mpt
         fi
     done
     return 0
@@ -98,7 +112,7 @@ adjustDrct(){
     fi
 }
 adjustMnts(){
-    for i in $(zut::listCloneDS $1 grep "rpool\(/[^/]\+\)/\(ROOT/[^/]\+\|usr\|var\)\$" ); do
+    for i in $(zut::listCloneDS $1 | grep "rpool\(/[^/]\+\)/\(ROOT/[^/]\+\|usr\|var\)\$" ); do
         _ds=$(zut::getProp $i origin | cut -d@ -f1 )
         if [ -n "$_ds" ]; then
             _mpt=$(zfs get mountpoint -Ho value $_ds )
@@ -122,7 +136,12 @@ initBE(){
     createBE
 }
 filterKver(){
-    ls $_mnt/boot | grep vmlinuz- | grep -v 79 | sed "s|vmlinuz\-||g" | tail -1
+    _kver=$(uname -r )
+    if [ -n "$_kver" ] && ls $_mnt/boot | grep -q "vmlinuz-$_kver"; then
+        echo $_kver
+    else
+        ls $_mnt/boot | grep "vmlinuz-" | grep -v 79 | sed "s|vmlinuz\-||g" | tail -1
+    fi
 }
 swapMntPt(){
     if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
@@ -145,6 +164,7 @@ activateBE(){
     mountRootUSR || return $?
     prepChr
     umount /boot/efi
+    systemctl daemon-reload
     chroot $_mnt mount -a
     chroot $_mnt dracut -vf --kver $(filterKver )
     resetRtDS
@@ -182,7 +202,7 @@ main(){
             exit 10
             ;;
     esac
-    [ -n "$_fl" ] && umount -R -l $_mnt
+    [ -n "$_fl" ] && postChr && umount -R -l $_mnt
 }
 
 main $@
