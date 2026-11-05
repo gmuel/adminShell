@@ -4,7 +4,11 @@ set -x
 getBtrfsMnts(){
     mount | awk "{if(\$5 == \"btrfs\" && \$3 == \"$1\"){print \$${2:-1}}}" | grep -v "/\(mnt\|media\)"
 }
-
+baseSys(){
+    for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
+        echo $i
+    done
+}
 getBtrfsFlgs(){
     getBtrfsMnts $1 6 | sed "s|.\+subvol=/\?\(@[^)]*\).\+|\1|g"
 }
@@ -88,7 +92,7 @@ if ! grep $_snp /mnt/etc/dracut.conf.d/90-tpm2.conf; then
 fi
 
 efiMounted && umount /boot/efi
-for i in /{dev{,/{pts,shm}},proc,run,sys{,/firmware/efi/efivars}}; do
+for i in $(baseSys ); do
     mount --rbind {,/mnt}$i
 done
 chroot /mnt mount -a
@@ -107,4 +111,8 @@ else
     fi
     awk -v RS=} "\$0 ~ /menuentry[^{]+$(uname -r )[^{]+{/{print \$0\"}\"}" /boot/grub/grub.cfg | grep -v submenu | sed "s|\(subvol=/\?\)\([^\s]\+\)|\1@$_dt/\2|g" >> /etc/grub.d/40_custom
 fi
+for i in $(baseSys | sort -r ); do
+    umount /mnt$i
+done
+
 umount -R -l /mnt
