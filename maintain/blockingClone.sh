@@ -53,7 +53,7 @@ _zp=${1:-$(zut::getRootPool )}
 [ -z "$_zp" ] && exit
 _clnm0=
 
-for _ds in $(zut::listNonCloneDS $_zp | grep "$_zp/\(ROOT/[^/]\+\|usr\|var\)\$" ); do
+for _ds in $(zut::listNonCloneDS $_zp | grep "$_zp\(\|/\(ROOT\(\|/[^/]\+\)\|usr\|var\)\)\$" ); do
     _lst=$(zut::lastSnap $_ds | tail -1 )
     _snpnm=$(echo $_lst | cut -d@ -f2 )
     [ -z "$_clnm0" ] && _clnm0=$_zp/$_snpnm
