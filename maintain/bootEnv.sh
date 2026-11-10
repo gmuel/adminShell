@@ -6,6 +6,13 @@ _rt0=
 _rt=
 _fl=
 _zp=
+NO_RT_DVC=1
+NO_NW_RT=2
+NO_USR_DS=3
+NO_DRC_CFG=4
+NO_MCH_ID=5
+NO_OP_STR=6
+
 . zfs-utils.sh
 set -x
 helptxt(){
@@ -28,6 +35,15 @@ helptxt(){
 
     Options:
         -h/--help           print this message
+    
+    Exit codes:
+    	0	operation completed successfully
+    	$NO_RT_DVC	no ZFS root dataset found
+    	$NO_NW_RT	no root clone found
+    	$NO_USR_DS	no /usr dataset found
+    	$NO_DRC_CFG	no dracut config file found
+    	$NO_MCH_ID	machine id matched while activation (should be different)
+    	$NO_OP_STR	unknown or unsupported operation flag
 EOH
 }
 
@@ -82,18 +98,18 @@ mountDS(){
 }
 initDSs(){
     _rt0=$(zut::getRootDS )
-    [ -z "$_rt0" ] && return 1
+    [ -z "$_rt0" ] && return $NO_RT_DVC
     _zp=$(echo $_rt0 | cut -d/ -f1 )
     _rt=$(basename $_rt0 )
     _rt=$(zut::listCloneDS $_zp | grep "$_rt" )
-    [ -z "$_rt" ] && return 2
+    [ -z "$_rt" ] && return $NO_NW_RT
     return 0
 }
 mountRootUSR(){
     initDSs || return $?
     mountDS $_rt $_mnt
     _ds=$(zut::listCloneDS $_zp | grep "/usr\$" )
-    [ -z "$_ds" ] && return 3
+    [ -z "$_ds" ] && return $NO_USR_DS
     mountDS $_ds $_mnt/usr
 }
 adjustFS(){
@@ -106,7 +122,7 @@ adjustFS(){
 }
 adjustDrct(){
     _cfg=$(for i in $(ls $_mnt/etc/dracut.conf.d/*.conf ); do grep -l "^kernel_cmdline" $i; done )
-    [ -z "$_cfg" ] && return 4
+    [ -z "$_cfg" ] && return $NO_DRC_CFG
     if grep $_rt0 $_cfg ; then
         sed -i "s|$_rt0|$_rt|g" $_cfg # | grep $_rt
     fi
@@ -163,12 +179,15 @@ revert(){
 activateBE(){
     mountRootUSR || return $?
     prepChr
-    umount /boot/efi
-    systemctl daemon-reload
-    chroot $_mnt mount -a
-    chroot $_mnt dracut -vf --kver $(filterKver )
-    resetRtDS
-    
+    if [ "$(cat /etc/machine-id )" != "$(cat $_mnt/etc/machine-id )" ]; then
+		umount /boot/efi
+		systemctl daemon-reload
+		chroot $_mnt mount -a
+		chroot $_mnt dracut -vf --kver $(filterKver )
+		resetRtDS
+		return 0
+    fi
+    return $NO_MCH_ID
 }
 destroyParents(){
     [ -z "$2" ] && return 0
@@ -187,7 +206,7 @@ main(){
             createBE || initBE || exit $?
             ;;
         activate)
-            activateBE
+            activateBE || exit $?
             ;;
         deactivate|revert)
             revert
@@ -199,7 +218,7 @@ main(){
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
-            exit 10
+            exit $NO_OP_STR
             ;;
     esac
     [ -n "$_fl" ] && postChr && umount -R -l $_mnt
