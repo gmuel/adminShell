@@ -193,6 +193,7 @@ sendSnap(){
     elif [ -n "$ch_chk" ]; then
         echo both volumes found - nothing to do
     fi
+    return ${ext:-0}
 }
 umountDvc(){
     echo umounting backup destination and encrypting for $dvc triggered by $vol_str0...
