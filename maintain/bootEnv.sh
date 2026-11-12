@@ -217,14 +217,16 @@ main(){
         delete|remove)
             revert
             _cl=$(zut::listCloneDS $_zp | head -1 )
+            [ -n "$_fl" ] && postChr && umount -R $_mnt && mount -a
             destroyParents $_zp $_cl
+            _fl=
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
             exit $NO_OP_STR
             ;;
     esac
-    [ -n "$_fl" ] && postChr && umount -R $_mnt
+    [ -n "$_fl" ] && postChr && umount -R $_mnt && mount -a
 }
 
 main $@
