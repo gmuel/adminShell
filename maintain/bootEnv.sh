@@ -203,13 +203,13 @@ main(){
     case "$1" in
         -h|--help)
             helptxt
-            exit 0
+            return 0
             ;;
         setup|create)
-            createBE || initBE || exit $?
+            createBE || initBE || return $?
             ;;
         activate)
-            activateBE || exit $?
+            activateBE || return $?
             ;;
         deactivate|revert)
             revert
@@ -223,10 +223,13 @@ main(){
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
-            exit $NO_OP_STR
+            return $NO_OP_STR
             ;;
     esac
-    [ -n "$_fl" ] && postChr && umount -R $_mnt && mount -a
+    if [ -n "$_fl" ]; then
+        postChr && umount -R $_mnt && mount -a || return $?
+    fi
+    return 0
 }
 
 main $@
