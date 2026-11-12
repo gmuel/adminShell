@@ -59,7 +59,7 @@ prepChr(){
     for i in $(baseSys ); do
         _mpt=$_mnt$i
         if ! mount | grep -q $_mpt ; then
-            mount --rbind $i $_mpt
+            mount --bind $i $_mpt
         fi
     done
     return 0
@@ -172,7 +172,10 @@ resetRtDS(){
 revert(){
     initDSs
     mountDS $_rt $_mnt
-    for _efi in $(find /boot/efi/EFI/Linux -type f -name "linux-*-$(cat $_mnt/etc/machine-id ).efi" 2>> /dev/null ); do
+    local _dr=/boot/efi/EFI/Linux
+    _beid=$(cat $_mnt/etc/machine-id )
+    [ "$(cat /etc/machine-id )" = "$_beid" -o ! -d $_dr ] && return 0
+    for _efi in $(find $_dr -type f -name "linux-*-$_beid.efi" 2>> /dev/null ); do
         rm -vf $_efi
     done
 }
@@ -221,7 +224,7 @@ main(){
             exit $NO_OP_STR
             ;;
     esac
-    [ -n "$_fl" ] && postChr && umount -R -l $_mnt
+    [ -n "$_fl" ] && postChr && umount -R $_mnt
 }
 
 main $@
