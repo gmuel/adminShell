@@ -161,7 +161,7 @@ filterKver(){
 }
 swapMntPt(){
     if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
-        echo zfs set -u mountpoint=/ $2
+        zfs set -u mountpoint=/ $2
         # echo zfs set -u mountpoint=legacy $1
     fi
 
