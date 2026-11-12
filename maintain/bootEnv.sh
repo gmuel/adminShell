@@ -68,7 +68,7 @@ postChr(){
     for i in $(baseSys | sort -r ); do
         _mpt=$_mnt$i
         if mount | grep -q $_mpt ; then
-            umount -l $_mpt
+            umount $_mpt
         fi
     done
     return 0
