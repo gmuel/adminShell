@@ -28,7 +28,7 @@ rmEFI(){
         if [ -d /boot/efi/EFI/Linux/ ]; then
             _beid=$(cat $_tmp )
             _efi=$(find /boot/efi/EFI/Linux/ -type f -name "linux-*-$_beid.efi" )
-            [ -n "$_efi" ] && [ "$(cat /etc/machine-id )" != "$_beid" ] rm -vf $_efi
+            [ -n "$_efi" ] && [ "$(cat /etc/machine-id )" != "$_beid" ] && rm -vf $_efi
         fi
     fi
 }
