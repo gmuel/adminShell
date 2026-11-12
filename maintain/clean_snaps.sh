@@ -5,6 +5,6 @@ _zp=${1:-$(zut::getRootPool )}
 
 for _snp in $(zut::listNoHoldSnaps $_zp ); do
     if ! zut::hasClone $_snp; then
-        echo zfs destroy -rv $_snp
+        zfs destroy -rv $_snp
     fi
 done
