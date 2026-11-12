@@ -59,7 +59,7 @@ prepChr(){
     for i in $(baseSys ); do
         _mpt=$_mnt$i
         if ! mount | grep -q $_mpt ; then
-            mount --rbind $i $_mpt
+            mount --bind $i $_mpt
         fi
     done
     return 0
@@ -172,7 +172,10 @@ resetRtDS(){
 revert(){
     initDSs
     mountDS $_rt $_mnt
-    for _efi in $(find /boot/efi/EFI/Linux -type f -name "linux-*-$(cat $_mnt/etc/machine-id ).efi" 2>> /dev/null ); do
+    local _dr=/boot/efi/EFI/Linux
+    _beid=$(cat $_mnt/etc/machine-id )
+    [ "$(cat /etc/machine-id )" = "$_beid" -o ! -d $_dr ] && return 0
+    for _efi in $(find $_dr -type f -name "linux-*-$_beid.efi" 2>> /dev/null ); do
         rm -vf $_efi
     done
 }
@@ -200,13 +203,13 @@ main(){
     case "$1" in
         -h|--help)
             helptxt
-            exit 0
+            return 0
             ;;
         setup|create)
-            createBE || initBE || exit $?
+            createBE || initBE || return $?
             ;;
         activate)
-            activateBE || exit $?
+            activateBE || return $?
             ;;
         deactivate|revert)
             revert
@@ -214,14 +217,19 @@ main(){
         delete|remove)
             revert
             _cl=$(zut::listCloneDS $_zp | head -1 )
+            [ -n "$_fl" ] && postChr && umount -R $_mnt && mount -a
             destroyParents $_zp $_cl
+            _fl=
             ;;
         *)
             echo "unknown operation '$1' - aborting..."
-            exit $NO_OP_STR
+            return $NO_OP_STR
             ;;
     esac
-    [ -n "$_fl" ] && postChr && umount -R -l $_mnt
+    if [ -n "$_fl" ]; then
+        postChr && umount -R $_mnt && mount -a || return $?
+    fi
+    return 0
 }
 
 main $@

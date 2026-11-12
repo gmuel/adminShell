@@ -26,8 +26,9 @@ rmEFI(){
     if [ -f $_tmp ]; then
         efiMounted || mount /boot/efi
         if [ -d /boot/efi/EFI/Linux/ ]; then
-            _efi=$(find /boot/efi/EFI/Linux/ -type f -name "linux-*-$(cat $_tmp ).efi" )
-            [ -n "$_efi" ] && rm -vf $_efi
+            _beid=$(cat $_tmp )
+            _efi=$(find /boot/efi/EFI/Linux/ -type f -name "linux-*-$_beid.efi" )
+            [ -n "$_efi" ] && [ "$(cat /etc/machine-id )" != "$_beid" ] && rm -vf $_efi
         fi
     fi
 }
@@ -92,20 +93,25 @@ if ! grep $_snp /mnt/etc/fstab; then
     systemctl daemon-reload
 fi
 
-efiMounted && umount /boot/efi
-for i in $(baseSys ); do
-    mount --rbind {,/mnt}$i
-done
-chroot /mnt mount -a
 _kver=$(uname -r )
 [ ! -d /mnt/lib/modules/$_kver ] && _kver=$(ls /mnt/lib/modules | tail -1 )
 
 if [ -n "$(which dracut )" ]; then
+	chroot /mnt mount -a
+	efiMounted && umount /boot/efi
+	for i in $(baseSys ); do
+		mount --bind {,/mnt}$i
+	done
+    _nid=
     if ! grep $_snp /mnt/etc/dracut.conf.d/90-tpm2.conf; then
         sed -i "s|\(subvol=/\)|\1$_snp/|g" /mnt/etc/dracut.conf.d/90-tpm2.conf
-        uuidgen | sed 's|-||g' > /mnt/etc/machine-id
+        _nid=$(uuidgen | sed 's|-||g' )
+        echo $_nid > /mnt/etc/machine-id
     fi
-    chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
+    [ "$_nid" != "$(cat /etc/machine-id )" ] && chroot /mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
+	for i in $(baseSys | sort -r ); do
+		umount /mnt$i
+	done
 else
     _cfg=/etc/grub.d/40_custom
     if [ ! -f ${_cfg}.1 ]; then
@@ -119,8 +125,6 @@ else
     awk -v RS=} "\$0 ~ /menuentry[^{]+$_kver[^{]+{/{print \$0\"}\"}" /boot/grub/grub.cfg | grep -v submenu | sed "s|\(subvol=/\?\)\([^\s]\+\)|\1$_snp/\2|g" >> /etc/grub.d/40_custom
     update-grub
 fi
-for i in $(baseSys | sort -r ); do
-    umount /mnt$i
-done
 
-umount -R -l /mnt
+umount -R /mnt
+mount -a
