@@ -68,7 +68,7 @@ postChr(){
     for i in $(baseSys | sort -r ); do
         _mpt=$_mnt$i
         if mount | grep -q $_mpt ; then
-            umount -l $_mpt
+            umount $_mpt
         fi
     done
     return 0
@@ -161,7 +161,7 @@ filterKver(){
 }
 swapMntPt(){
     if [ "$(zfs get mountpoint -Ho value $1 )" != "legacy" ]; then
-        echo zfs set -u mountpoint=/ $2
+        zfs set -u mountpoint=/ $2
         # echo zfs set -u mountpoint=legacy $1
     fi
 
