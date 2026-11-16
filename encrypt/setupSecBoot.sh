@@ -99,7 +99,7 @@ verify /boot/efi/EFI/systemd/systemd-bootx64.efi
 
 [ -f /boot/efi/EFI/refind/refind_x64.efi ] && verify /boot/efi/EFI/refind/refind_x64.efi
 
-if grep uefi_secureboot_cert /etc/dracut.conf.d/90-tpm2.conf; then
+if ! grep uefi_secureboot_cert /etc/dracut.conf.d/90-tpm2.conf; then
     echo 'uefi_secureboot_cert="/boot/efikeys/db.crt"' | tee -a /etc/dracut.conf.d/90-tpm2.conf
 
     echo 'uefi_secureboot_key="/boot/efikeys/db.key"' | tee -a /etc/dracut.conf.d/90-tpm2.conf
