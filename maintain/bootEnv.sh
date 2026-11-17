@@ -179,15 +179,21 @@ revert(){
         rm -vf $_efi
     done
 }
+signEFI(){
+    sbsign --key /boot/efikeys/db.key --cert /boot/efikeys/db.crt --output {,}$1
+}
 activateBE(){
     mountRootUSR || return $?
     prepChr
-    if [ "$(cat /etc/machine-id )" != "$(cat $_mnt/etc/machine-id )" ]; then
+    _nid=$(cat $_mnt/etc/machine-id )
+    if [ "$(cat /etc/machine-id )" != "$_nid" ]; then
 		umount /boot/efi
 		systemctl daemon-reload
 		chroot $_mnt mount -a
-		chroot $_mnt dracut -vf --kver $(filterKver )
+        _kver=$(filterKver )
+		chroot $_mnt dracut -vf --kver $_kver
 		resetRtDS
+        [ -d /boot/efikeys ] && signEFI /mnt/boot/efi/EFI/Linux/linux-$_kver-$_nid.efi
 		return 0
     fi
     return $NO_MCH_ID
