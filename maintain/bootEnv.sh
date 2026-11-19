@@ -191,9 +191,10 @@ activateBE(){
 		systemctl daemon-reload
 		chroot $_mnt mount -a
         _kver=$(filterKver )
-		chroot $_mnt dracut -vf --kver $_kver
-		resetRtDS
-        [ -d /boot/efikeys ] && signEFI /mnt/boot/efi/EFI/Linux/linux-$_kver-$_nid.efi
+        mount --bind -o ro {,/mnt}/home
+        mount --bind -o ro {,/mnt}/home/gab* 
+		chroot $_mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
+		# resetRtDS
 		return 0
     fi
     return $NO_MCH_ID
