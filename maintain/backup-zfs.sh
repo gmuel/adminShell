@@ -125,6 +125,7 @@ main(){
         full)
             createSnap $_zp
             lastHold.sh $_zp
+            bootEnv.sh delete
             blockingClone.sh $_zp
             bootEnv.sh create
             ;;
