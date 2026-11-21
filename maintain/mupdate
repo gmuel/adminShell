@@ -1,7 +1,12 @@
 #!/bin/bash
 flg=0
+_ds=rpool/boot/efikeys
 if mintupdate-cli -r list | grep .; then
+    /usr/local/sbin/mountEDS.sh $_ds
     mintupdate-cli -r upgrade -y
+    if [ -n "$(mount | awk "{if(\$1 == \"$_ds\"){print \$3}}" )" ]; then
+        zfs unmount -u $_ds
+    fi
     bg
     flg=1
 fi

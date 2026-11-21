@@ -16,6 +16,7 @@ _zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
 _fl=bin/zfsDev.map
 _dt=$(date +%F )
 _sfl=
+_blk=not-sent
 export PATH=$(pwd )/$(dirname $0 ):$PATH
 
 . zfs-utils.sh
@@ -100,14 +101,24 @@ impPool(){
 }
 
 createSnap(){
+    local _tg=${2:-$_blk}
     if ! zut::exists $1@$_dt ; then
         zut::listNonCloneDS $1 | while read _ds; do
             zfs snapshot $_ds@$_dt
+            zfs hold $_tg $_ds@$_dt
         done
     fi
 }
 reportFail(){
     echo "Backup failed for UUID '$1'"
+}
+releaseSent(){
+    local _tg=${2:-$_blk}
+    for i in $(zut::listNonCloneDS $1 ); do
+        if zut::hasHold $i $2; then
+            zfs release -r $_tg $i@$_dt && break
+        fi
+    done
 }
 
 main(){
@@ -147,7 +158,7 @@ main(){
 
     [ -z "$_zp" ] && exit $ERR_NO_RTP
     [ ! -f $_fl ] && exit $ERR_NO_CFG
-
+    _snt=
     grep -v "^#" $_fl | while read _uuid _kyfl _ds _bck; do
         decrypt $_uuid $_kyfl || continue
         impPool $_bck || continue
@@ -165,7 +176,9 @@ main(){
         fi
         zpool export $_bck
         cryptsetup luksClose luks-$_uuid
+        [ -z "$_snt" ] && _snt=0
     done
+    [ -n "$_snt" ] && releaseSent $_zp
 }
 
 main $@
