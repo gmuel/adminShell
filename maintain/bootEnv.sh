@@ -182,6 +182,12 @@ revert(){
 signEFI(){
     sbsign --key /boot/efikeys/db.key --cert /boot/efikeys/db.crt --output {,}$1
 }
+findSudoer(){
+    for i in /home/*; do
+        _nm=$(basename $i )
+        [ "$(id -u $_nm )" = "1000" ] && echo $_nm && break
+    done
+}
 activateBE(){
     mountRootUSR || return $?
     prepChr
@@ -192,7 +198,7 @@ activateBE(){
 		chroot $_mnt mount -a
         _kver=$(filterKver )
         mount --bind -o ro {,/mnt}/home
-        mount --bind -o ro {,/mnt}/home/gab* 
+        mount --bind -o ro {,/mnt}/home/$(findSudoer )
 		chroot $_mnt /etc/kernel/postinst.d/zzz-dracut-regenerate-all $_kver
 		# resetRtDS
 		return 0
