@@ -83,3 +83,8 @@ zut::findSudoer(){
         [ "$(id -u $_nm )" = "1000" ] && echo $_nm && break
     done
 }
+zut::createDS(){
+    if ! zut::exists $1; then
+        zfs create "$2" $1
+    fi
+}
