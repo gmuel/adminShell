@@ -10,6 +10,7 @@ ERR_NO_MNT=4
 ERR_NO_RTP=5
 ERR_NO_CFG=6
 ERR_NO_SDS=7
+ERR_FL_SND=8
 
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
@@ -17,6 +18,7 @@ _fl=bin/zfsDev.map
 _dt=$(date +%F )
 _sfl=
 _blk=not-sent
+_snt=last-sent
 export PATH=$(pwd )/$(dirname $0 ):$PATH
 
 . zfs-utils.sh
@@ -62,8 +64,8 @@ helptxt(){
         $ERR_NO_RTP    No root pool found - must match rpool or cpool
         $ERR_NO_CFG    No backup config file found
         $ERR_NO_SDS    No such dataset in root/source pool
-        $(($ERR_NO_SDS+1))    Single/initial send failed
-        $(($ERR_NO_SDS+2))    incremental send failed
+        $(($ERR_FL_SND+1))    Single/initial send failed
+        $(($ERR_FL_SND+2))    incremental send failed
 EOH
 }
 
@@ -93,8 +95,9 @@ impPool(){
         [ -z "$_bck" ] && return $ERR_NO_IMP
     fi
     zpool list | grep $_bck && return 0
-    if zpool import 2>> /dev/null | grep "$_bck" && ! mount | grep /mnt; then
-        zpool import -f -R /mnt $_bck
+    _mnt=/tmp/$_bck
+    if zpool import 2>> /dev/null | grep "$_bck" && ! mount | grep $_mnt; then
+        zpool import -f -R $_mnt $_bck
     else
         return $ERR_NO_MNT
     fi
@@ -113,15 +116,60 @@ reportFail(){
     echo "Backup failed for UUID '$1'"
 }
 releaseSent(){
-    local _tg=${2:-$_blk}
-    for i in $(zut::listNonCloneDS $1 ); do
-        if zut::hasHold $i $2; then
-            zfs release -r $_tg $i@$_dt && break
+    _tg=${2:-$_blk}
+    if zut::hasHold $1@$_dt $2; then
+        zfs release -r $_tg $1@$_dt
+    fi
+}
+lastSent(){
+    for _snp in $(zut::listAllSnaps $1 ); do
+        zut::hasHold $_snp $2-$3 && echo $_snp && break
+    done
+    for _snp in $(zut::listAllSnaps $4${1//"$_zp"/} | sort -r ); do
+        local _src=$_zp${_snp//"$4"/}
+        if zfs list -Ho name $_src >> /dev/null 2>&1 ; then
+            echo $_src && break
         fi
     done
 }
-
+send(){
+    local _prt=$(lastSent $1 $2 $3 $4 | cut -d@ -f2 )
+    [ "$(zut::getProp $1 encryption snapshot )" == "-" ] && _opts=v || _opts=wv
+    local _prt0=
+    local _trg=$3
+    local _rop="-u -o canmount=off -o readonly=on"
+    for _ds0 in $(zut::listNonCloneDS $1 ); do
+        if [ -z "$_prt" ]; then
+            zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_trg@$_dt || return $ERR_FL_SND
+        else
+            zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_trg || return $ERR_FL_SND
+        fi
+        [ -z "$_prt0" ] && _prt0=$_ds0@$_prt
+    done
+}
+cleanUp(){
+    _lst=
+    for _uuid in $(grep -v "^#" $3 | awk '{print $1}' ); do
+        _ds=$(awk "{if(\$1 == \"$_uuid\"){print \$3}}" $3 )
+        _bck=$(awk "{if(\$1 == \"$_uuid\"){print \$4}}" $3 )
+        zut::exists $_bck || continue
+        _trg=$_bck/$_ds
+        zut::exists $_trg${1//"$_zp"/}@$_dt || return $ERR_FL_SND
+        _hld=$2-$_bck
+        _lst=$(zut::lastSnap $1 2 | head -1 )
+        if [ "$1" != "$_lst" ]; then
+            if zut::hasHold $lst@$_dt $_hld; then
+                zfs release -r $_hld $_lst
+            fi
+            zfs hold -r $_hld $1@$_dt
+        fi
+        zpool export $_bck
+        cryptsetup luksClose luks-$_uuid
+    done
+    [ -n "$_lst" ] && releaseSent $1
+}
 main(){
+    local _src=
     case "$1" in
         -h|--help)
             helptxt
@@ -134,6 +182,8 @@ main(){
             exit $?
         ;;
         full)
+            _snt1=$_snt-$_zp
+            _src=$_zp
             createSnap $_zp
             lastHold.sh $_zp
             bootEnv.sh delete
@@ -141,16 +191,19 @@ main(){
             bootEnv.sh create
             ;;
         home)
-            createSnap $_zp/home
-            lastHold.sh $_zp/home 2
+            _src=$_zp/home
+            _snt1=$_snt-$_src
+            createSnap $_src
+            lastHold.sh $_src 2
             ;;
         ''|none)
             ;;
         *)
-            _ds=$(zfs list -rHo name $_zp | grep $1 )
+            _src=$(zfs list -rHo name $_zp | grep $1 )
             if [ -n "$_ds" ]; then
-                createSnap $_ds
-                lastHold.sh $_ds
+                _snt1=$_snt-$_src
+                createSnap $_src
+                lastHold.sh $_src
             else
                 exit $ERR_NO_SDS
             fi
@@ -168,17 +221,18 @@ main(){
         else
             _trg=$_bck
         fi
-        backup-full-zfs.sh $_sfl $_zp $_trg
+#        backup-full-zfs.sh $_sfl $_zp $_trg
+        send $_src $_snt1-$_bck $_trg${_src//"$_zp"/} $_trg $_snt1
         _flg=$?
         if [ $_flg != 0 ]; then
             reportFail $_uuid $_flg
-            exit $(($ERR_NO_SDS+$_flg+1))
+            exit $(($ERR_FL_SND+$_flg+1))
         fi
-        zpool export $_bck
-        cryptsetup luksClose luks-$_uuid
-        [ -z "$_snt" ] && _snt=0
+#        zpool export $_bck
+#        cryptsetup luksClose luks-$_uuid
+#        [ -z "$_snt" ] && _snt=0
     done
-    [ -n "$_snt" ] && releaseSent $_zp
+    cleanUp $_src $_snt1 $_fl
 }
 
 main $@
