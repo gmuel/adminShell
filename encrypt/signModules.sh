@@ -7,8 +7,10 @@ signMods(){
     for i in $(find /lib/modules -type f -name "$1" ); do
         cd $(dirname $i )
         for j in *; do
-            [ "$j" != "${j//'.zst'/}" ] && zstd -d --rm $j
-            echo $_cmd sha256 ${_ky}{key,crt} $j
+            _fl=${j//'.zst'/}
+            [ "$j" != "$_fl" ] && zstd -d --rm $j
+            $_cmd sha256 ${_ky}{key,crt} $_fl
+            [ "$j" != "$_fl" ] && zstd -o $_fl
         done
     done
 }
