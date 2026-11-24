@@ -50,7 +50,7 @@ zut::getHold(){
     zfs holds $1 -H
 }
 zut::hasHold(){
-    _tg=${2:-$1}
+    local _tg=${2:-$1}
     if [ "$_tg" = "$1" ]; then
         zut::getHold $1 | grep -q "$1"
     else
