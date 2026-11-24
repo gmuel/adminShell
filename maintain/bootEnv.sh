@@ -183,10 +183,7 @@ signEFI(){
     sbsign --key /boot/efikeys/db.key --cert /boot/efikeys/db.crt --output {,}$1
 }
 findSudoer(){
-    for i in /home/*; do
-        _nm=$(basename $i )
-        [ "$(id -u $_nm )" = "1000" ] && echo $_nm && break
-    done
+    zut::findSudoer
 }
 activateBE(){
     mountRootUSR || return $?

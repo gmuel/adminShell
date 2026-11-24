@@ -77,3 +77,9 @@ zut::getClone(){
 zut::hasClone(){
     [ -n "$(zut::getClone $1 )" ]
 }
+zut::findSudoer(){
+    for i in /home/*; do
+        _nm=$(basename $i )
+        [ "$(id -u $_nm )" = "1000" ] && echo $_nm && break
+    done
+}
