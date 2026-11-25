@@ -10,7 +10,7 @@ signMods(){
             _fl=${j//'.zst'/}
             [ "$j" != "$_fl" ] && zstd -d --rm $j
             $_cmd sha256 ${_ky}{key,crt} $_fl
-            [ "$j" != "$_fl" ] && zstd -o $_fl
+            [ "$j" != "$_fl" ] && zstd -z -o $_fl
         done
     done
 }
