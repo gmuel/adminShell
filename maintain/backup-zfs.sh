@@ -11,6 +11,7 @@ ERR_NO_RTP=5
 ERR_NO_CFG=6
 ERR_NO_SDS=7
 ERR_FL_SND=8
+ERR_NO_DTS=9
 
 _bck=
 _zp=$(zpool get name -Ho value | grep "^\([rc]pool\|z\(root\|clone\)\)\$" )
@@ -54,7 +55,7 @@ helptxt(){
             -h/--help   print this message
             -l/--last   send only last snapshot per dataset, default is sending all snapshots per dataset
                         requires last snapshots parent to be present in backup ZPOOL
-            
+            -d/--date   send only snapshots until DATE string where DATE is a date string in 'YYYY-mm-dd' format
     Exit codes:
         0    no problems encountered
         $ERR_NO_DVC    No backup device found - must be present in config
@@ -63,7 +64,8 @@ helptxt(){
         $ERR_NO_MNT    Mountpoint /mnt currently in use
         $ERR_NO_RTP    No root pool found - must match rpool or cpool
         $ERR_NO_CFG    No backup config file found
-        $ERR_NO_SDS    No such dataset in root/source pool
+        $ERR_NO_SDS    No such dataset in root/source pool or snapshot (see -d option)
+        $ERR_NO_DTS    No date string in format 'YYYY-mm-dd'
         $(($ERR_FL_SND+1))    Single/initial send failed
         $(($ERR_FL_SND+2))    incremental send failed
 EOH
@@ -134,18 +136,21 @@ lastSent(){
 }
 send(){
     local _prt=$(lastSent $1 $2 $3 $4 | cut -d@ -f2 )
-    [ "$(zut::getProp $1 encryption snapshot )" == "-" ] && _opts=v || _opts=wv
     local _prt0=
     local _trg=$3
     local _rop="-u -o canmount=off -o readonly=on"
     for _ds0 in $(zut::listNonCloneDS $1 ); do
+        [ "$(zut::getProp $_ds0 encryption )" == "off" ] && _opts=v || _opts=wv
+        _tds=$_trg${_ds0//$_zp/}
+        zut::exists $_tds && zut::exists $_tds@$_dt && continue
         if [ -z "$_prt" ]; then
-            zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_trg@$_dt || return $ERR_FL_SND
+            zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_tds@$_dt || return $ERR_FL_SND
         else
-            zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_trg || return $ERR_FL_SND
+            zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_tds || return $ERR_FL_SND
         fi
         [ -z "$_prt0" ] && _prt0=$_ds0@$_prt
     done
+    return 0
 }
 cleanUp(){
     _lst=
@@ -180,7 +185,17 @@ main(){
             shift
             main $@
             exit $?
-        ;;
+            ;;
+        '-d'|'--date')
+            
+            shift
+            _dt0=$1
+            echo $_dt0 | grep "^20\(2[6-9]\|[3-9][0-9]\)\-\(0[1-9]\|1[0-1]\)\-\(0[1-9]\|[12][0-9]\|3[01]\)\$" || exit $ERR_NO_DTS
+            _src=${2:-$_zp}
+            _dt=$_dt0
+            zut::exists $_src@$_dt || exit $ERR_NO_SDS
+            _snt1=$_snt-${_src}
+            ;;
         full)
             _snt1=$_snt-$_zp
             _src=$_zp
@@ -198,8 +213,9 @@ main(){
             ;;
         ''|none)
             ;;
+        
         *)
-            _src=$(zfs list -rHo name $_zp | grep $1 )
+            _src=$(zfs list -rHo name $_zp | grep "$1\$" )
             if [ -n "$_ds" ]; then
                 _snt1=$_snt-$_src
                 createSnap $_src
@@ -232,7 +248,7 @@ main(){
 #        cryptsetup luksClose luks-$_uuid
 #        [ -z "$_snt" ] && _snt=0
     done
-    cleanUp $_src $_snt1 $_fl
+    [ $? -eq 0 ] && cleanUp $_src $_snt1 $_fl
 }
 
 main $@
