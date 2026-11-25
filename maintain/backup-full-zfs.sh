@@ -81,7 +81,7 @@ sendLast(){
     fi
 }
 case $1 in
-    -h/--help)
+    -h|--help)
         helptxt
         exit 0
     ;;
