@@ -3,14 +3,16 @@ set -x
 apt update
 
 . zfs-utils.sh
-alias createDS='zut::createDS'
+createDS(){
+    zut::createDS $1 "$2"
+}
 
 setupBootKeys(){
-    _zp=$(zut::getR)
+    _zp=$(zut::getRootPool )
     _ds0=$_zp/boot
     if [ -z "$_zp" ]; then
-        mkdir -u 0700 -p $_ds0
-        exit 0
+        mkdir -m 0700 -p /boot/efikeys
+        return 0
     fi
     createDS $_ds0 "-o mountpoint=none"
     _ds1=$_ds0/efikeys
@@ -20,14 +22,16 @@ setupBootKeys(){
         [ ! -d $_dr ] && mkdir -u 0700 -p $_dr
         dd if=/dev/urandom of=$_ky bs=32 count=1
     fi
-    createDS $_ds1 "-o mountpoint=${_ds1//$_zp/} -o canmount=noauto -o encryption=on -o keyformat=raw -o keylocation=file://$_ky"
+    createDS $_ds1 "-o mountpoint=${_ds1//$_zp/} -o canmount=noauto -o encryption=on -o keyformat=raw -o keylocation=file://$_ky" || return $?
     mountEDS.sh $_ds1
 }
 
 if ! apt list --installed 2>> /dev/null | grep efitools; then
     apt -y install sbsigntool efitools efivar openssl
 fi
-[ ! -d /boot/efikeys ]  && setupBootKeys $(zut::findSudoer )
+if [ ! -d /boot/efikeys ]; then
+    setupBootKeys $(zut::findSudoer ) || exit $?
+fi
 
 [ -f /boot/efikeys/PK.key ] && exit 0
 
