@@ -85,6 +85,6 @@ zut::findSudoer(){
 }
 zut::createDS(){
     if ! zut::exists $1; then
-        zfs create "$2" $1
+        zfs create $2 $1
     fi
 }
