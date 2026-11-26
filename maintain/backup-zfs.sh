@@ -125,17 +125,17 @@ releaseSent(){
 }
 lastSent(){
     for _snp in $(zut::listAllSnaps $1 ); do
-        zut::hasHold $_snp $2-$3 && echo $_snp && break
+        zut::hasHold $_snp $2 && echo $_snp && break
     done
-    for _snp in $(zut::listAllSnaps $4${1//"$_zp"/} | sort -r ); do
-        local _src=$_zp${_snp//"$4"/}
+    for _snp in $(zut::listAllSnaps $3 | sort -r ); do
+        local _src=$_zp${_snp//"$3"/}
         if zfs list -Ho name $_src >> /dev/null 2>&1 ; then
             echo $_src && break
         fi
     done
 }
 send(){
-    local _prt=$(lastSent $1 $2 $3 $4 | cut -d@ -f2 )
+    local _prt=$(lastSent $1 $2 $3 | cut -d@ -f2 )
     local _prt0=
     local _trg=$3
     local _rop="-u -o canmount=off -o readonly=on"
@@ -162,11 +162,9 @@ cleanUp(){
         zut::exists $_trg${1//"$_zp"/}@$_dt || return $ERR_FL_SND
         _hld=$2-$_bck
         _lst=$(zut::lastSnap $1 2 | head -1 )
-        if [ "$1" != "$_lst" ]; then
-            if zut::hasHold $lst@$_dt $_hld; then
-                zfs release -r $_hld $_lst
-            fi
-            zfs hold -r $_hld $1@$_dt
+        if [ "$1@$_dt" != "$_lst" ]; then
+            zut::hasHold $lst $_hld && zfs release -r $_hld $_lst
+            zut::hasHold $1@$_dt $_hld || zfs hold -r $_hld $1@$_dt
         fi
         zpool export $_bck
         cryptsetup luksClose luks-$_uuid
