@@ -119,24 +119,36 @@ reportFail(){
 }
 releaseSent(){
     _tg=${2:-$_blk}
-    if zut::hasHold $1@$_dt $2; then
+    if zut::hasHold $1@$_dt $_tg; then
         zfs release -r $_tg $1@$_dt
     fi
 }
 lastSent(){
-    for _snp in $(zut::listAllSnaps $1 ); do
-        zut::hasHold $_snp $2 && echo $_snp && break
+    for _snp in $(zut::listAllSnaps $1 | sort -r ); do
+        zut::hasHold $_snp $2 && echo $_snp && return 0
     done
     for _snp in $(zut::listAllSnaps $3 | sort -r ); do
-        local _src=$_zp${_snp//"$3"/}
+        local _src=$1${_snp//"$3"/}
         if zfs list -Ho name $_src >> /dev/null 2>&1 ; then
             echo $_src && break
         fi
     done
 }
+clean(){
+    zut::exists $_trg${1//"$_zp"/}@$_dt || return $ERR_FL_SND
+    _hld=$2
+    _lst=${3:-$(zut::lastSnap $1 2 | head -1 )}
+    if [ "$1@$_dt" != "$_lst" ]; then
+        zut::hasHold $lst $_hld && zfs release -r $_hld $_lst
+    fi
+    zut::hasHold $1@$_dt $_hld || zfs hold -r $_hld $1@$_dt
+    zpool export $_bck
+    cryptsetup luksClose luks-$_uuid
+    [ -n "$_lst" ] && releaseSent $1
+    return 0
+}
 send(){
     local _prt=$(lastSent $1 $2 $3 | cut -d@ -f2 )
-    local _prt0=
     local _trg=$3
     local _rop="-u -o canmount=off -o readonly=on"
     for _ds0 in $(zut::listNonCloneDS $1 ); do
@@ -148,9 +160,9 @@ send(){
         else
             zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_tds || return $ERR_FL_SND
         fi
-        [ -z "$_prt0" ] && _prt0=$_ds0@$_prt
     done
-    return 0
+    clean $1 $2 $1@$_prt
+    return $?
 }
 cleanUp(){
     _lst=
@@ -192,10 +204,10 @@ main(){
             _src=${2:-$_zp}
             _dt=$_dt0
             zut::exists $_src@$_dt || exit $ERR_NO_SDS
-            _snt1=$_snt-${_src}
+            _snt1=${_snt}_${_src}
             ;;
         full)
-            _snt1=$_snt-$_zp
+            _snt1=${_snt}_$_zp
             _src=$_zp
             createSnap $_zp
             lastHold.sh $_zp
@@ -205,7 +217,7 @@ main(){
             ;;
         home)
             _src=$_zp/home
-            _snt1=$_snt-$_src
+            _snt1=${_snt}_$_src
             createSnap $_src
             lastHold.sh $_src 2
             ;;
@@ -215,7 +227,7 @@ main(){
         *)
             _src=$(zfs list -rHo name $_zp | grep "$1\$" )
             if [ -n "$_ds" ]; then
-                _snt1=$_snt-$_src
+                _snt1=${_snt}_$_src
                 createSnap $_src
                 lastHold.sh $_src
             else
@@ -236,7 +248,7 @@ main(){
             _trg=$_bck
         fi
 #        backup-full-zfs.sh $_sfl $_zp $_trg
-        send $_src $_snt1-$_bck $_trg${_src//"$_zp"/} $_trg $_snt1
+        send $_src ${_snt1}_$_bck $_trg${_src//"$_zp"/} $_trg $_snt1
         _flg=$?
         if [ $_flg != 0 ]; then
             reportFail $_uuid $_flg
@@ -246,7 +258,7 @@ main(){
 #        cryptsetup luksClose luks-$_uuid
 #        [ -z "$_snt" ] && _snt=0
     done
-    [ $? -eq 0 ] && cleanUp $_src $_snt1 $_fl
+#    [ $? -eq 0 ] && cleanUp $_src $_snt1 $_fl
 }
 
 main $@
