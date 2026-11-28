@@ -148,10 +148,10 @@ clean(){
     return 0
 }
 send(){
-    local _prt=$(lastSent $1 $2 $3 | cut -d@ -f2 )
     local _trg=$3
     local _rop="-u -o canmount=off -o readonly=on"
     for _ds0 in $(zut::listNonCloneDS $1 ); do
+        local _prt=$(lastSent $_ds0 $2 $3 | cut -d@ -f2 )
         [ "$(zut::getProp $_ds0 encryption )" == "off" ] && _opts=v || _opts=wv
         _tds=$_trg${_ds0//$_zp/}
         zut::exists $_tds && zut::exists $_tds@$_dt && continue
