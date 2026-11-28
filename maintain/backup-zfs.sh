@@ -136,53 +136,35 @@ lastSent(){
 }
 clean(){
     zut::exists $_trg${1//"$_zp"/}@$_dt || return $ERR_FL_SND
-    _hld=$2
-    _lst=${3:-$(zut::lastSnap $1 2 | head -1 )}
-    if [ "$1@$_dt" != "$_lst" ]; then
-        zut::hasHold $lst $_hld && zfs release -r $_hld $_lst
-    fi
-    zut::hasHold $1@$_dt $_hld || zfs hold -r $_hld $1@$_dt
     zpool export $_bck
     cryptsetup luksClose luks-$_uuid
-    [ -n "$_lst" ] && releaseSent $1
+    releaseSent $1
     return 0
 }
+copyHolds(){
+    for _hld in $(zut::getHold $1 | awk '{print $2}' | grep "^last" | grep -v "$3" ); do
+        zfs hold $_hld $2 && zfs release $_hld $1
+    done
+}
 send(){
-    local _trg=$3
+    local _trg=$4
     local _rop="-u -o canmount=off -o readonly=on"
     for _ds0 in $(zut::listNonCloneDS $1 ); do
-        local _prt=$(lastSent $_ds0 $2 $3 | cut -d@ -f2 )
-        [ "$(zut::getProp $_ds0 encryption )" == "off" ] && _opts=v || _opts=wv
         _tds=$_trg${_ds0//$_zp/}
+        local _prt=$(lastSent $_ds0 $2 $_tds | cut -d@ -f2 )
+        [ "$(zut::getProp $_ds0 encryption )" == "off" ] && _opts=v || _opts=wv
         zut::exists $_tds && zut::exists $_tds@$_dt && continue
         if [ -z "$_prt" ]; then
             zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_tds@$_dt || return $ERR_FL_SND
         else
             zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_tds || return $ERR_FL_SND
         fi
+        copyHolds $_ds0@{$_prt,$_dt} $2
     done
     clean $1 $2 $1@$_prt
     return $?
 }
-cleanUp(){
-    _lst=
-    for _uuid in $(grep -v "^#" $3 | awk '{print $1}' ); do
-        _ds=$(awk "{if(\$1 == \"$_uuid\"){print \$3}}" $3 )
-        _bck=$(awk "{if(\$1 == \"$_uuid\"){print \$4}}" $3 )
-        zut::exists $_bck || continue
-        _trg=$_bck/$_ds
-        zut::exists $_trg${1//"$_zp"/}@$_dt || return $ERR_FL_SND
-        _hld=$2-$_bck
-        _lst=$(zut::lastSnap $1 2 | head -1 )
-        if [ "$1@$_dt" != "$_lst" ]; then
-            zut::hasHold $lst $_hld && zfs release -r $_hld $_lst
-            zut::hasHold $1@$_dt $_hld || zfs hold -r $_hld $1@$_dt
-        fi
-        zpool export $_bck
-        cryptsetup luksClose luks-$_uuid
-    done
-    [ -n "$_lst" ] && releaseSent $1
-}
+
 main(){
     local _src=
     case "$1" in
