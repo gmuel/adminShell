@@ -142,9 +142,13 @@ clean(){
     return 0
 }
 copyHolds(){
-    for _hld in $(zut::getHold $1 | awk '{print $2}' | grep "^last" | grep -v "$3" ); do
+    if [ -z "$3" ] || ! zut::exists $1; then
+        return 0
+    fi
+    for _hld in $(zut::getHold $1 | awk '{print $2}' | grep "^last" ); do
         zfs hold $_hld $2 && zfs release $_hld $1
     done
+    zut::hasHold $1 $3 || zfs hold $3 $1
 }
 send(){
     local _trg=$4
@@ -153,11 +157,12 @@ send(){
         _tds=$_trg${_ds0//$_zp/}
         local _prt=$(lastSent $_ds0 $2 $_tds | cut -d@ -f2 )
         [ "$(zut::getProp $_ds0 encryption )" == "off" ] && _opts=v || _opts=wv
-        zut::exists $_tds && zut::exists $_tds@$_dt && continue
-        if [ -z "$_prt" ]; then
-            zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_tds@$_dt || return $ERR_FL_SND
-        else
-            zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_tds || return $ERR_FL_SND
+        if zut::exists $_tds && ! zut::exists $_tds@$_dt; then
+            if [ -z "$_prt" ]; then
+                zfs send -$_opts $__ds0@$_dt | zfs receive $_rop $_tds@$_dt || return $ERR_FL_SND
+            else
+                zfs send -$_opts -i $_ds0@{$_prt,$_dt} | zfs receive $_rop $_tds || return $ERR_FL_SND
+            fi
         fi
         copyHolds $_ds0@{$_prt,$_dt} $2
     done
